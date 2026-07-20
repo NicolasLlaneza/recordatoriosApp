@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -22,15 +21,11 @@ export default function SettingsScreen(_props: ScreenProps<'Settings'>) {
   const insets = useSafeAreaInsets();
   const s = state.settings;
 
-  const bumpHour = (delta: number) =>
-    updateSettings({ dailyCheckHour: (s.dailyCheckHour + delta + 24) % 24 });
-  const bumpMinute = (delta: number) =>
-    updateSettings({ dailyCheckMinute: (s.dailyCheckMinute + delta + 60) % 60 });
-
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl }}
+      keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.section}>Aviso diario</Text>
       <View style={styles.card}>
@@ -50,13 +45,18 @@ export default function SettingsScreen(_props: ScreenProps<'Settings'>) {
           <>
             <View style={styles.divider} />
             <Text style={styles.rowTitle}>Hora del aviso</Text>
+            <Text style={styles.rowSub}>Tocá para escribir la hora.</Text>
             <View style={styles.timeRow}>
-              <Stepper value={pad(s.dailyCheckHour)} onMinus={() => bumpHour(-1)} onPlus={() => bumpHour(1)} />
+              <TimeField
+                value={s.dailyCheckHour}
+                max={23}
+                onCommit={(n) => updateSettings({ dailyCheckHour: n })}
+              />
               <Text style={styles.colon}>:</Text>
-              <Stepper
-                value={pad(s.dailyCheckMinute)}
-                onMinus={() => bumpMinute(-5)}
-                onPlus={() => bumpMinute(5)}
+              <TimeField
+                value={s.dailyCheckMinute}
+                max={59}
+                onCommit={(n) => updateSettings({ dailyCheckMinute: n })}
               />
             </View>
 
@@ -88,25 +88,52 @@ export default function SettingsScreen(_props: ScreenProps<'Settings'>) {
   );
 }
 
-function Stepper({
+/**
+ * Campo de hora/minuto editable con el teclado numérico. Muestra el valor con
+ * dos dígitos; mientras se escribe permite entradas parciales y al terminar
+ * valida y acota (0..max).
+ */
+function TimeField({
   value,
-  onMinus,
-  onPlus,
+  max,
+  onCommit,
 }: {
-  value: string;
-  onMinus: () => void;
-  onPlus: () => void;
+  value: number;
+  max: number;
+  onCommit: (n: number) => void;
 }) {
+  const [text, setText] = useState(pad(value));
+  const editing = useRef(false);
+
+  // Sincronizar si el valor cambia desde afuera y no se está editando.
+  useEffect(() => {
+    if (!editing.current) setText(pad(value));
+  }, [value]);
+
+  const commit = () => {
+    editing.current = false;
+    let n = parseInt(text, 10);
+    if (isNaN(n)) n = value;
+    n = Math.min(max, Math.max(0, n));
+    onCommit(n);
+    setText(pad(n));
+  };
+
   return (
-    <View style={styles.stepper}>
-      <Pressable style={styles.stepBtn} onPress={onMinus}>
-        <Text style={styles.stepBtnText}>−</Text>
-      </Pressable>
-      <Text style={styles.stepValue}>{value}</Text>
-      <Pressable style={styles.stepBtn} onPress={onPlus}>
-        <Text style={styles.stepBtnText}>+</Text>
-      </Pressable>
-    </View>
+    <TextInput
+      value={text}
+      onFocus={() => {
+        editing.current = true;
+      }}
+      onChangeText={(t) => setText(t.replace(/[^0-9]/g, '').slice(0, 2))}
+      onBlur={commit}
+      onEndEditing={commit}
+      keyboardType="number-pad"
+      maxLength={2}
+      selectTextOnFocus
+      returnKeyType="done"
+      style={styles.timeField}
+    />
   );
 }
 
@@ -133,22 +160,18 @@ const styles = StyleSheet.create({
   rowSub: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.lg },
   timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md },
-  colon: { color: colors.text, fontSize: 28, fontWeight: '800', marginHorizontal: spacing.md },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  colon: { color: colors.text, fontSize: 32, fontWeight: '800', marginHorizontal: spacing.sm },
+  timeField: {
     backgroundColor: colors.cardAlt,
     borderRadius: radius.md,
-    overflow: 'hidden',
-  },
-  stepBtn: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  stepBtnText: { color: colors.accent, fontSize: 24, fontWeight: '800' },
-  stepValue: {
+    borderWidth: 1,
+    borderColor: colors.border,
     color: colors.text,
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '800',
-    minWidth: 48,
     textAlign: 'center',
+    minWidth: 88,
+    paddingVertical: spacing.md,
   },
   input: {
     backgroundColor: colors.cardAlt,
