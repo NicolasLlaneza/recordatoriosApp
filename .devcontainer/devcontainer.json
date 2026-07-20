@@ -1,7 +1,7 @@
 {
   "name": "recordatorios",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libatk1.0-0 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libnss3 libnspr4 libasound2 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libpango-1.0-0 libcairo2 libatspi2.0-0 && npm install",
   "customizations": {
     "vscode": {
       "extensions": ["expo.vscode-expo-tools"]
