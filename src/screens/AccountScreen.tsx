@@ -14,19 +14,17 @@ import { colors, radius, spacing } from '../theme';
 import { ScreenProps } from '../navigation';
 
 export default function AccountScreen(_props: ScreenProps<'Account'>) {
-  const { isConfigured, loading, session, email: sessionEmail, sendCode, verifyCode, signOut } =
-    useAuth();
+  const { isConfigured, loading, session, email: sessionEmail, signIn, signUp, signOut } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pad = { padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl };
 
-  // Backend todavía no configurado (falta el .env).
   if (!isConfigured) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={pad}>
@@ -49,7 +47,6 @@ export default function AccountScreen(_props: ScreenProps<'Account'>) {
     );
   }
 
-  // Sesión iniciada.
   if (session) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={pad}>
@@ -65,82 +62,86 @@ export default function AccountScreen(_props: ScreenProps<'Account'>) {
     );
   }
 
-  const onSendCode = async () => {
+  const submit = async () => {
     setError(null);
     if (!email.includes('@')) {
       setError('Ingresá un email válido.');
       return;
     }
-    setBusy(true);
-    const { error } = await sendCode(email);
-    setBusy(false);
-    if (error) setError(error);
-    else setStep('code');
-  };
-
-  const onVerify = async () => {
-    setError(null);
-    if (code.trim().length < 6) {
-      setError('El código tiene 6 dígitos.');
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
     setBusy(true);
-    const { error } = await verifyCode(email, code);
+    const { error } = mode === 'signin' ? await signIn(email, password) : await signUp(email, password);
     setBusy(false);
     if (error) setError(error);
-    // Si sale bien, onAuthStateChange actualiza la sesión y cambia la vista.
+    // Si sale bien, onAuthStateChange abre la sesión y cambia la vista.
   };
+
+  const isSignin = mode === 'signin';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={pad} keyboardShouldPersistTaps="handled">
       <View style={styles.card}>
-        <Text style={styles.title}>Iniciar sesión</Text>
+        <Text style={styles.title}>{isSignin ? 'Iniciar sesión' : 'Crear cuenta'}</Text>
         <Text style={styles.body}>
-          Te enviamos un código de 6 dígitos por email. No hace falta contraseña.
+          {isSignin
+            ? 'Entrá con tu email y contraseña.'
+            : 'Registrate con tu email y una contraseña (mínimo 6 caracteres).'}
         </Text>
 
-        {step === 'email' ? (
-          <>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="tu@email.com"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus
-            />
-            <Pressable style={[styles.btn, busy && styles.btnDisabled]} onPress={onSendCode} disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Enviar código</Text>}
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <Text style={styles.label}>Código enviado a {email}</Text>
-            <TextInput
-              value={code}
-              onChangeText={(t) => setCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
-              placeholder="______"
-              placeholderTextColor={colors.textMuted}
-              style={[styles.input, styles.codeInput]}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus
-            />
-            <Pressable style={[styles.btn, busy && styles.btnDisabled]} onPress={onVerify} disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Verificar</Text>}
-            </Pressable>
-            <Pressable style={styles.linkBtn} onPress={() => { setStep('email'); setCode(''); setError(null); }}>
-              <Text style={styles.linkText}>Cambiar email</Text>
-            </Pressable>
-          </>
-        )}
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="tu@email.com"
+          placeholderTextColor={colors.textMuted}
+          style={styles.input}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="emailAddress"
+        />
+
+        <Text style={styles.label}>Contraseña</Text>
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••"
+          placeholderTextColor={colors.textMuted}
+          style={styles.input}
+          secureTextEntry
+          autoCapitalize="none"
+          textContentType={isSignin ? 'password' : 'newPassword'}
+        />
+
+        <Pressable style={[styles.btn, busy && styles.btnDisabled]} onPress={submit} disabled={busy}>
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.btnText}>{isSignin ? 'Ingresar' : 'Registrarme'}</Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={styles.linkBtn}
+          onPress={() => {
+            setMode(isSignin ? 'signup' : 'signin');
+            setError(null);
+          }}
+        >
+          <Text style={styles.linkText}>
+            {isSignin ? '¿No tenés cuenta? Crear una' : '¿Ya tenés cuenta? Iniciar sesión'}
+          </Text>
+        </Pressable>
 
         {error && <Text style={styles.error}>{error}</Text>}
       </View>
+
+      <Text style={styles.soon}>
+        Próximamente vas a poder entrar también con Google y Apple.
+      </Text>
     </ScrollView>
   );
 }
@@ -178,7 +179,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  codeInput: { fontSize: 28, fontWeight: '800', textAlign: 'center', letterSpacing: 8 },
   btn: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,
@@ -200,4 +200,5 @@ const styles = StyleSheet.create({
   linkBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.xs },
   linkText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   error: { color: colors.danger, fontSize: 14, marginTop: spacing.md, textAlign: 'center' },
+  soon: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: spacing.xl },
 });

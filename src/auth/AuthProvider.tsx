@@ -1,21 +1,40 @@
-// Estado de sesión (login con email + código de un solo uso).
+// Estado de sesión (login con email + contraseña).
+//
+// Requiere que en Supabase esté DESACTIVADO "Confirm email" (Authentication →
+// Providers → Email), así el registro deja la sesión abierta sin mandar mail.
+//
+// Google / Apple: se agregan más adelante con un development build (no
+// funcionan en Expo Go). Ver roadmap en README.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+
+type Result = { error?: string };
 
 type AuthValue = {
   isConfigured: boolean;
   loading: boolean;
   session: Session | null;
   email: string | null;
-  /** Envía un código de 6 dígitos al email. */
-  sendCode: (email: string) => Promise<{ error?: string }>;
-  /** Verifica el código y abre sesión. */
-  verifyCode: (email: string, token: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<Result>;
+  signUp: (email: string, password: string) => Promise<Result>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
+
+/** Traduce los mensajes de error más comunes de Supabase. */
+function translate(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login credentials')) return 'Email o contraseña incorrectos.';
+  if (m.includes('already registered') || m.includes('already been registered'))
+    return 'Ese email ya tiene cuenta. Probá iniciar sesión.';
+  if (m.includes('password') && m.includes('6')) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (m.includes('unable to validate email') || m.includes('invalid email'))
+    return 'El email no es válido.';
+  if (m.includes('email logins are disabled')) return 'El login por email está deshabilitado en Supabase.';
+  return message;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -36,22 +55,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const sendCode = async (email: string) => {
-    const clean = email.trim().toLowerCase();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: clean,
-      options: { shouldCreateUser: true },
+  const signIn = async (email: string, password: string): Promise<Result> => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
     });
-    return error ? { error: error.message } : {};
+    return error ? { error: translate(error.message) } : {};
   };
 
-  const verifyCode = async (email: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
+  const signUp = async (email: string, password: string): Promise<Result> => {
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
-      token: token.trim(),
-      type: 'email',
+      password,
     });
-    return error ? { error: error.message } : {};
+    if (error) return { error: translate(error.message) };
+    // Si "Confirm email" está activo, no hay sesión hasta confirmar el mail.
+    if (!data.session) {
+      return {
+        error:
+          'Falta confirmar el email. En Supabase, desactivá "Confirm email" (Authentication → Providers → Email) para entrar directo.',
+      };
+    }
+    return {};
   };
 
   const signOut = async () => {
@@ -64,8 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       session,
       email: session?.user?.email ?? null,
-      sendCode,
-      verifyCode,
+      signIn,
+      signUp,
       signOut,
     }),
     [loading, session]

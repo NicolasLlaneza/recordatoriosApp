@@ -33,5 +33,17 @@ npx expo export --platform android --output-dir /tmp/exp     # valida el bundle
 ## Estado
 
 - Fase 1 (app local) — completa.
-- Fase 2 (grupos de convivientes, backend Supabase) — pendiente.
+- Fase 2a (login) — **email + contraseña** vía Supabase. Requiere "Confirm
+  email" DESACTIVADO en Supabase (Authentication → Providers → Email). Se
+  descartó el login por código de email por la fricción con SMTP/templates.
+- Fase 2b (grupos de convivientes: crear/unirse, avisar al otro) — pendiente.
 - Fase 3 (aviso por ubicación con expo-location) — pendiente.
+
+## Backend / auth
+
+- Credenciales de Supabase en `.env` (EXPO_PUBLIC_*), versionado a propósito
+  (anon key es pública; la seguridad la dan las RLS). Nunca commitear
+  service_role.
+- Google / Apple sign-in: pendientes para cuando se haga el **development
+  build** (no funcionan en Expo Go; Apple además requiere cuenta de developer
+  paga). Ese build hace falta igual para push notifications reales.
