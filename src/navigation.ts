@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Home: undefined;
   EditReminder: { id?: string } | undefined;
   Settings: undefined;
+  Account: undefined;
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

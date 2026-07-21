@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../storage/store';
+import { useAuth } from '../auth/AuthProvider';
 import { colors, radius, spacing } from '../theme';
 import { ScreenProps } from '../navigation';
 
@@ -16,8 +18,9 @@ function pad(n: number) {
   return String(n).padStart(2, '0');
 }
 
-export default function SettingsScreen(_props: ScreenProps<'Settings'>) {
+export default function SettingsScreen({ navigation }: ScreenProps<'Settings'>) {
   const { state, updateSettings } = useStore();
+  const { session, email, isConfigured } = useAuth();
   const insets = useSafeAreaInsets();
   const s = state.settings;
 
@@ -73,6 +76,23 @@ export default function SettingsScreen(_props: ScreenProps<'Settings'>) {
           </>
         )}
       </View>
+
+      <Text style={styles.section}>Cuenta</Text>
+      <Pressable style={styles.card} onPress={() => navigation.navigate('Account')}>
+        <View style={styles.rowBetween}>
+          <View style={{ flex: 1, paddingRight: spacing.md }}>
+            <Text style={styles.rowTitle}>{session ? 'Mi cuenta' : 'Iniciar sesión'}</Text>
+            <Text style={styles.rowSub}>
+              {!isConfigured
+                ? 'Necesaria para los grupos (aún sin configurar).'
+                : session
+                ? email ?? ''
+                : 'Para crear grupos con tus convivientes.'}
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </View>
+      </Pressable>
 
       <Text style={styles.section}>Próximamente</Text>
       <View style={styles.card}>
@@ -158,6 +178,7 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', alignItems: 'center' },
   rowTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
   rowSub: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  chevron: { color: colors.textMuted, fontSize: 28, fontWeight: '400' },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.lg },
   timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md },
   colon: { color: colors.text, fontSize: 32, fontWeight: '800', marginHorizontal: spacing.sm },
