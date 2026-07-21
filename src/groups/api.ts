@@ -61,6 +61,12 @@ export async function joinGroup(code: string): Promise<Group> {
   return data as Group;
 }
 
+/** Elimina el grupo por completo (solo el creador, por RLS). Cascada borra todo. */
+export async function deleteGroup(groupId: string): Promise<void> {
+  const { error } = await supabase.from('groups').delete().eq('id', groupId);
+  if (error) throw error;
+}
+
 export async function leaveGroup(groupId: string): Promise<void> {
   const uid = await currentUserId();
   if (!uid) return;

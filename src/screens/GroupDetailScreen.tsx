@@ -22,6 +22,7 @@ import {
   GroupReminder,
   Member,
   UndoRecord,
+  deleteGroup,
   leaveGroup,
   listMembers,
   listReminders,
@@ -42,6 +43,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
   const [undos, setUndos] = useState<Record<string, UndoRecord>>({});
   const [members, setMembers] = useState<Member[]>([]);
   const [code, setCode] = useState('');
+  const [createdBy, setCreatedBy] = useState('');
   const [loading, setLoading] = useState(true);
   const today = dayKey();
 
@@ -63,7 +65,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
         listTodayCompletions(groupId, today),
         listTodayUndos(groupId, today),
         listMembers(groupId),
-        supabase.from('groups').select('join_code').eq('id', groupId).single(),
+        supabase.from('groups').select('join_code, created_by').eq('id', groupId).single(),
       ]);
       setReminders(rems);
       const map: Record<string, Completion> = {};
@@ -71,7 +73,10 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
       setCompletions(map);
       setUndos(unds);
       setMembers(mems);
-      if (grp.data) setCode(grp.data.join_code as string);
+      if (grp.data) {
+        setCode(grp.data.join_code as string);
+        setCreatedBy(grp.data.created_by as string);
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'No se pudo cargar el grupo');
     } finally {
@@ -163,6 +168,30 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
     ]);
   };
 
+  const isOwner = !!createdBy && createdBy === myId;
+
+  const confirmDelete = () => {
+    Alert.alert(
+      'Eliminar grupo',
+      `¿Eliminar "${name}" para todos? Se borran sus recordatorios y no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteGroup(groupId);
+              navigation.goBack();
+            } catch (e: any) {
+              Alert.alert('Error', e.message ?? 'No se pudo eliminar');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -237,9 +266,16 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
         )}
       </View>
 
-      <Pressable style={[styles.leaveBtn, { marginBottom: insets.bottom + spacing.md }]} onPress={confirmLeave}>
-        <Text style={styles.leaveText}>Salir del grupo</Text>
-      </Pressable>
+      <View style={{ marginBottom: insets.bottom + spacing.md }}>
+        <Pressable style={styles.leaveBtn} onPress={confirmLeave}>
+          <Text style={styles.leaveText}>Salir del grupo</Text>
+        </Pressable>
+        {isOwner && (
+          <Pressable style={styles.leaveBtn} onPress={confirmDelete}>
+            <Text style={styles.deleteText}>Eliminar grupo</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -297,5 +333,6 @@ const styles = StyleSheet.create({
   title: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '700' },
   editHint: { color: colors.textMuted, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   leaveBtn: { alignItems: 'center', paddingVertical: spacing.md },
-  leaveText: { color: colors.danger, fontSize: 15, fontWeight: '700' },
+  leaveText: { color: colors.textMuted, fontSize: 15, fontWeight: '700' },
+  deleteText: { color: colors.danger, fontSize: 15, fontWeight: '700' },
 });
