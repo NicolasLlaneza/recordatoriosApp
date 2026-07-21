@@ -9,6 +9,9 @@ import HomeScreen from './src/screens/HomeScreen';
 import EditReminderScreen from './src/screens/EditReminderScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import AccountScreen from './src/screens/AccountScreen';
+import GroupsScreen from './src/screens/GroupsScreen';
+import GroupDetailScreen from './src/screens/GroupDetailScreen';
+import EditGroupReminderScreen from './src/screens/EditGroupReminderScreen';
 import { RootStackParamList } from './src/navigation';
 import { colors } from './src/theme';
 import { ensureNotificationPermissions, rescheduleDailyCheck } from './src/lib/notifications';
@@ -70,6 +73,13 @@ export default function App() {
               />
               <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ajustes' }} />
               <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Cuenta' }} />
+              <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Grupos' }} />
+              <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Grupo' }} />
+              <Stack.Screen
+                name="EditGroupReminder"
+                component={EditGroupReminderScreen}
+                options={{ title: 'Recordatorio', presentation: 'modal' }}
+              />
             </Stack.Navigator>
           </NavigationContainer>
         </StoreProvider>

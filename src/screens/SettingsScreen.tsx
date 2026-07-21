@@ -94,10 +94,23 @@ export default function SettingsScreen({ navigation }: ScreenProps<'Settings'>) 
         </View>
       </Pressable>
 
+      {session && (
+        <>
+          <Text style={styles.section}>Grupos</Text>
+          <Pressable style={styles.card} onPress={() => navigation.navigate('Groups')}>
+            <View style={styles.rowBetween}>
+              <View style={{ flex: 1, paddingRight: spacing.md }}>
+                <Text style={styles.rowTitle}>Grupos de convivientes</Text>
+                <Text style={styles.rowSub}>Compartí recordatorios y avisá al otro cuando hacés una tarea.</Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </View>
+          </Pressable>
+        </>
+      )}
+
       <Text style={styles.section}>Próximamente</Text>
       <View style={styles.card}>
-        <Text style={styles.soon}>👥 Grupos de convivientes — avisar al otro cuando hacés una tarea.</Text>
-        <View style={styles.divider} />
         <Text style={styles.soon}>📍 Aviso por ubicación — preguntarte al alejarte de casa.</Text>
       </View>
 

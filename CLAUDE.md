@@ -36,8 +36,18 @@ npx expo export --platform android --output-dir /tmp/exp     # valida el bundle
 - Fase 2a (login) — **email + contraseña** vía Supabase. Requiere "Confirm
   email" DESACTIVADO en Supabase (Authentication → Providers → Email). Se
   descartó el login por código de email por la fricción con SMTP/templates.
-- Fase 2b (grupos de convivientes: crear/unirse, avisar al otro) — pendiente.
+- Fase 2b (grupos: crear/unirse por código, recordatorios compartidos,
+  completados con atribución y tiempo real, aviso al otro) — implementada.
+  Requiere correr `supabase/schema.sql` en el SQL Editor de Supabase.
 - Fase 3 (aviso por ubicación con expo-location) — pendiente.
+
+## Grupos (Fase 2b)
+
+- Esquema + RLS + RPC (create_group / join_group) en `supabase/schema.sql`
+  (idempotente). Realtime habilitado en group_completions y group_reminders.
+- Código de la app: `src/groups/api.ts` + pantallas Groups / GroupDetail /
+  EditGroupReminder. Aviso al otro = notificación local al recibir evento
+  realtime de otro usuario (push con app cerrada = pendiente dev build).
 
 ## Backend / auth
 
