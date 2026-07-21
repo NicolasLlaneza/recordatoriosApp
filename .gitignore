@@ -31,7 +31,9 @@ yarn-error.*
 *.pem
 
 # local env files
-.env
+# NOTA: .env se versiona a proposito. Solo contiene EXPO_PUBLIC_* de Supabase
+# (URL + anon key), que son PUBLICAS por diseno (la seguridad la dan las RLS).
+# NUNCA agregar aca claves secretas (service_role): esas jamas van al repo.
 .env*.local
 
 # typescript
