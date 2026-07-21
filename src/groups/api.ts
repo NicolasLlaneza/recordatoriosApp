@@ -27,6 +27,8 @@ export type Completion = {
 
 export type Member = { user_id: string; display_name: string };
 
+export type UndoRecord = { group_reminder_id: string; undone_by: string; undone_at: string };
+
 async function currentUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
   return data.user?.id ?? null;
@@ -156,7 +158,28 @@ export async function setDone(
       .eq('group_reminder_id', reminder.id)
       .eq('day', day);
     if (error) throw error;
+    // Registrar el deshecho (auditoría: quién y cuándo).
+    await supabase.from('group_undo_log').insert({
+      group_id: reminder.group_id,
+      group_reminder_id: reminder.id,
+      day,
+      undone_by: uid,
+    });
   }
+}
+
+/** Último deshecho por recordatorio para el día dado. */
+export async function listTodayUndos(groupId: string, day: string): Promise<Record<string, UndoRecord>> {
+  const { data, error } = await supabase
+    .from('group_undo_log')
+    .select('group_reminder_id, undone_by, undone_at')
+    .eq('group_id', groupId)
+    .eq('day', day)
+    .order('undone_at', { ascending: true });
+  if (error) throw error;
+  const map: Record<string, UndoRecord> = {};
+  for (const r of data ?? []) map[r.group_reminder_id as string] = r as UndoRecord; // el último gana
+  return map;
 }
 
 /** Suscripción en tiempo real a cambios de recordatorios y completados del grupo. */
@@ -171,6 +194,11 @@ export function subscribeGroup(groupId: string, onChange: (payload: any) => void
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'group_reminders', filter: `group_id=eq.${groupId}` },
+      onChange
+    )
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'group_undo_log', filter: `group_id=eq.${groupId}` },
       onChange
     )
     .subscribe();

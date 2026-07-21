@@ -21,10 +21,12 @@ import {
   Completion,
   GroupReminder,
   Member,
+  UndoRecord,
   leaveGroup,
   listMembers,
   listReminders,
   listTodayCompletions,
+  listTodayUndos,
   setDone,
   subscribeGroup,
 } from '../groups/api';
@@ -37,6 +39,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
 
   const [reminders, setReminders] = useState<GroupReminder[]>([]);
   const [completions, setCompletions] = useState<Record<string, Completion>>({});
+  const [undos, setUndos] = useState<Record<string, UndoRecord>>({});
   const [members, setMembers] = useState<Member[]>([]);
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(true);
@@ -55,9 +58,10 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
 
   const fetchAll = useCallback(async () => {
     try {
-      const [rems, comps, mems, grp] = await Promise.all([
+      const [rems, comps, unds, mems, grp] = await Promise.all([
         listReminders(groupId),
         listTodayCompletions(groupId, today),
+        listTodayUndos(groupId, today),
         listMembers(groupId),
         supabase.from('groups').select('join_code').eq('id', groupId).single(),
       ]);
@@ -65,6 +69,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
       const map: Record<string, Completion> = {};
       for (const c of comps) map[c.group_reminder_id] = c;
       setCompletions(map);
+      setUndos(unds);
       setMembers(mems);
       if (grp.data) setCode(grp.data.join_code as string);
     } catch (e: any) {
@@ -83,15 +88,14 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
   // Realtime: refrescar ante cualquier cambio y avisar cuando otro marca algo.
   useEffect(() => {
     const unsub = subscribeGroup(groupId, (payload: any) => {
-      if (
-        payload.table === 'group_completions' &&
-        payload.eventType === 'INSERT' &&
-        payload.new?.done_by &&
-        payload.new.done_by !== myId
-      ) {
+      if (payload.eventType === 'INSERT' && payload.new?.group_reminder_id) {
         const rem = remindersRef.current.find((r) => r.id === payload.new.group_reminder_id);
-        const who = nameOf(payload.new.done_by);
-        if (rem) notifyLocal(`${who} marcó "${rem.title}" ✅`);
+        if (rem && payload.table === 'group_completions' && payload.new.done_by !== myId) {
+          notifyLocal(`${nameOf(payload.new.done_by)} marcó "${rem.title}" ✅`);
+        }
+        if (rem && payload.table === 'group_undo_log' && payload.new.undone_by !== myId) {
+          notifyLocal(`${nameOf(payload.new.undone_by)} deshizo "${rem.title}" ↩`);
+        }
       }
       fetchAll();
     });
@@ -119,17 +123,26 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
     }
   };
 
-  const onUndo = async (rem: GroupReminder, comp?: Completion) => {
+  const onUndo = (rem: GroupReminder, comp?: Completion) => {
     if (comp && comp.done_by !== myId) {
       Alert.alert('No podés deshacerlo', `Lo marcó ${nameOf(comp.done_by)}.`);
       return;
     }
-    try {
-      await setDone(rem, today, false);
-      await fetchAll();
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'No se pudo deshacer');
-    }
+    Alert.alert('Deshacer', `¿Marcar "${rem.title}" como no hecho?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Deshacer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await setDone(rem, today, false);
+            await fetchAll();
+          } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'No se pudo deshacer');
+          }
+        },
+      },
+    ]);
   };
 
   const shareCode = () => {
@@ -196,6 +209,10 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
             {reminders.map((rem) => {
               const comp = completions[rem.id];
               const label = comp ? `Hecho por ${nameOf(comp.done_by)} a las ${formatTime(new Date(comp.done_at).getTime())}` : '';
+              const undo = !comp ? undos[rem.id] : undefined;
+              const note = undo
+                ? `Deshecho por ${nameOf(undo.undone_by)} a las ${formatTime(new Date(undo.undone_at).getTime())}`
+                : undefined;
               return (
                 <View key={rem.id} style={styles.card}>
                   <Pressable
@@ -209,6 +226,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
                   <SlideToConfirm
                     done={!!comp}
                     doneLabel={label}
+                    note={note}
                     onConfirm={() => onConfirm(rem)}
                     onUndo={() => onUndo(rem, comp)}
                   />

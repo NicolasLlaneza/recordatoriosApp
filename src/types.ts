@@ -31,6 +31,8 @@ export type Settings = {
 export type AppState = {
   reminders: Reminder[];
   completions: CompletionMap;
+  /** Momento (ms) en que se deshizo un "hecho", por día y recordatorio. */
+  undos: CompletionMap;
   settings: Settings;
   /** true una vez que se hidrató desde el almacenamiento. */
   loaded: boolean;

@@ -1,6 +1,7 @@
 // Switch deslizable: se arrastra el pulgar hacia la derecha para marcar como
-// hecho. Al confirmarse, la barra se pone verde. Usa Animated + PanResponder
-// del core de React Native (sin dependencias nativas extra).
+// hecho. Al confirmarse, la barra se pone verde. Para deshacer hay un botón
+// aparte (con confirmación en el componente padre), así un toque accidental no
+// borra el registro. Usa Animated + PanResponder del core de React Native.
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -19,15 +20,17 @@ const TRIGGER_RATIO = 0.7; // % del recorrido para confirmar
 
 type Props = {
   done: boolean;
-  doneLabel: string; // ej: "Hecho 23:14"
+  doneLabel: string; // ej: "Hecho a las 23:14"
+  note?: string; // ej: "Deshecho a las 23:20" (cuando está pendiente tras un undo)
   idleLabel?: string;
   onConfirm: () => void;
-  onUndo: () => void;
+  onUndo: () => void; // el padre muestra la confirmación
 };
 
 export default function SlideToConfirm({
   done,
   doneLabel,
+  note,
   idleLabel = 'Deslizá para marcar como hecho',
   onConfirm,
   onUndo,
@@ -42,7 +45,6 @@ export default function SlideToConfirm({
     maxXRef.current = Math.max(0, w - THUMB - PAD * 2);
   };
 
-  // Reset del pulgar cuando pasa a "no hecho" (ej: se deshizo o cambió el día).
   useEffect(() => {
     if (!done) translateX.setValue(0);
   }, [done, translateX]);
@@ -81,24 +83,28 @@ export default function SlideToConfirm({
 
   if (done) {
     return (
-      <Pressable
-        onPress={onUndo}
-        style={[styles.track, styles.trackDone]}
-        accessibilityRole="button"
-        accessibilityLabel={`${doneLabel}. Tocá para deshacer`}
-      >
-        <View style={[styles.thumb, styles.thumbDone]}>
-          <Text style={styles.thumbIcon}>✓</Text>
+      <View>
+        <View style={[styles.track, styles.trackDone]}>
+          <View style={[styles.thumb, styles.thumbDone]}>
+            <Text style={styles.thumbIcon}>✓</Text>
+          </View>
+          <Text style={styles.doneText} numberOfLines={1}>
+            {doneLabel}
+          </Text>
         </View>
-        <Text style={styles.doneText} numberOfLines={1}>
-          {doneLabel}
-        </Text>
-        <Text style={styles.undoHint}>deshacer</Text>
-      </Pressable>
+        <Pressable
+          onPress={onUndo}
+          style={styles.undoBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Deshacer"
+        >
+          <Text style={styles.undoBtnText}>↩  Deshacer</Text>
+        </Pressable>
+      </View>
     );
   }
 
-  // Opacidad del fondo verde que crece a medida que se arrastra.
   const fillOpacity = translateX.interpolate({
     inputRange: [0, Math.max(1, maxXRef.current)],
     outputRange: [0, 1],
@@ -106,17 +112,20 @@ export default function SlideToConfirm({
   });
 
   return (
-    <View style={styles.track} onLayout={onLayout}>
-      <Animated.View style={[styles.fill, { opacity: fillOpacity }]} />
-      <Text style={styles.idleText} numberOfLines={1}>
-        {idleLabel}
-      </Text>
-      <Animated.View
-        style={[styles.thumb, { transform: [{ translateX }] }]}
-        {...panResponder.panHandlers}
-      >
-        <Text style={styles.thumbIcon}>›</Text>
-      </Animated.View>
+    <View>
+      <View style={styles.track} onLayout={onLayout}>
+        <Animated.View style={[styles.fill, { opacity: fillOpacity }]} />
+        <Text style={styles.idleText} numberOfLines={1}>
+          {idleLabel}
+        </Text>
+        <Animated.View
+          style={[styles.thumb, { transform: [{ translateX }] }]}
+          {...panResponder.panHandlers}
+        >
+          <Text style={styles.thumbIcon}>›</Text>
+        </Animated.View>
+      </View>
+      {note ? <Text style={styles.note}>{note}</Text> : null}
     </View>
   );
 }
@@ -183,12 +192,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: spacing.md,
   },
-  undoHint: {
-    color: '#CFEBD9',
-    fontSize: 12,
-    fontWeight: '600',
-    marginRight: spacing.md,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  undoBtn: {
+    alignSelf: 'center',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  undoBtnText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  note: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginTop: spacing.sm,
+    marginLeft: spacing.xs,
+    fontStyle: 'italic',
   },
 });

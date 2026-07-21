@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   AppState as RNAppState,
   FlatList,
   Pressable,
@@ -15,7 +16,14 @@ import { dayKey, friendlyDate, msUntilNextMidnight } from '../lib/day';
 import { ScreenProps } from '../navigation';
 
 export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
-  const { state, setDone, doneAt } = useStore();
+  const { state, setDone, doneAt, undoneAt } = useStore();
+
+  const confirmUndo = (id: string, title: string) => {
+    Alert.alert('Deshacer', `¿Marcar "${title}" como no hecho?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Deshacer', style: 'destructive', onPress: () => setDone(id, today, false) },
+    ]);
+  };
   const insets = useSafeAreaInsets();
 
   // Día actual en estado para forzar re-render al cruzar la medianoche.
@@ -83,8 +91,9 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
             <ReminderRow
               reminder={item}
               doneAtMs={at}
+              undoneAtMs={undoneAt(item.id, today)}
               onConfirm={() => setDone(item.id, today, true)}
-              onUndo={() => setDone(item.id, today, false)}
+              onUndo={() => confirmUndo(item.id, item.title)}
               onEdit={() => navigation.navigate('EditReminder', { id: item.id })}
             />
           );

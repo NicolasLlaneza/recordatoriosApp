@@ -127,6 +127,24 @@ drop policy if exists gc_delete on public.group_completions;
 create policy gc_delete on public.group_completions
   for delete to authenticated using (public.is_group_member(group_id) and done_by = auth.uid());
 
+-- REGISTRO DE DESHECHOS (auditoría: quién deshizo qué y cuándo) ---------------
+create table if not exists public.group_undo_log (
+  id                uuid primary key default gen_random_uuid(),
+  group_id          uuid not null references public.groups(id) on delete cascade,
+  group_reminder_id uuid not null references public.group_reminders(id) on delete cascade,
+  day               date not null,
+  undone_by         uuid not null references auth.users(id),
+  undone_at         timestamptz not null default now()
+);
+alter table public.group_undo_log enable row level security;
+
+drop policy if exists gul_select on public.group_undo_log;
+create policy gul_select on public.group_undo_log
+  for select to authenticated using (public.is_group_member(group_id));
+drop policy if exists gul_insert on public.group_undo_log;
+create policy gul_insert on public.group_undo_log
+  for insert to authenticated with check (public.is_group_member(group_id) and undone_by = auth.uid());
+
 -- RPC: crear grupo (devuelve el grupo con su código) -------------------------
 create or replace function public.create_group(p_name text)
 returns public.groups language plpgsql security definer set search_path = public as $$
@@ -164,5 +182,10 @@ begin
                  where pubname = 'supabase_realtime' and schemaname = 'public'
                    and tablename = 'group_reminders') then
     alter publication supabase_realtime add table public.group_reminders;
+  end if;
+  if not exists (select 1 from pg_publication_tables
+                 where pubname = 'supabase_realtime' and schemaname = 'public'
+                   and tablename = 'group_undo_log') then
+    alter publication supabase_realtime add table public.group_undo_log;
   end if;
 end $$;

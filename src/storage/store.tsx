@@ -44,6 +44,7 @@ function seedReminders(): Reminder[] {
 const initialState: AppState = {
   reminders: [],
   completions: {},
+  undos: {},
   settings: defaultSettings,
   loaded: false,
 };
@@ -103,14 +104,18 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'SET_DONE': {
       const dayMap = { ...(state.completions[action.day] ?? {}) };
+      const undoMap = { ...(state.undos[action.day] ?? {}) };
       if (action.done) {
         dayMap[action.id] = Date.now();
+        delete undoMap[action.id]; // al re-marcar, se limpia la nota de deshecho
       } else {
         delete dayMap[action.id];
+        undoMap[action.id] = Date.now(); // se registra la hora del deshecho
       }
       return {
         ...state,
         completions: { ...state.completions, [action.day]: dayMap },
+        undos: { ...state.undos, [action.day]: undoMap },
       };
     }
 
@@ -130,6 +135,7 @@ type StoreValue = {
   setDone: (id: string, day: string, done: boolean) => void;
   updateSettings: (settings: Partial<Settings>) => void;
   doneAt: (id: string, day: string) => number | undefined;
+  undoneAt: (id: string, day: string) => number | undefined;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -151,6 +157,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             payload: {
               reminders: parsed.reminders ?? [],
               completions: prune(parsed.completions ?? {}),
+              undos: prune(parsed.undos ?? {}),
               settings: { ...defaultSettings, ...(parsed.settings ?? {}) },
             },
           });
@@ -160,6 +167,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             payload: {
               reminders: seedReminders(),
               completions: {},
+              undos: {},
               settings: defaultSettings,
             },
           });
@@ -168,7 +176,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         console.warn('[store] no se pudo hidratar:', e);
         dispatch({
           type: 'HYDRATE',
-          payload: { reminders: seedReminders(), completions: {}, settings: defaultSettings },
+          payload: { reminders: seedReminders(), completions: {}, undos: {}, settings: defaultSettings },
         });
       }
     })();
@@ -205,6 +213,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (id: string, day: string) => state.completions[day]?.[id],
     [state.completions]
   );
+  const undoneAt = useCallback(
+    (id: string, day: string) => state.undos[day]?.[id],
+    [state.undos]
+  );
 
   const value = useMemo<StoreValue>(
     () => ({
@@ -215,8 +227,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setDone,
       updateSettings,
       doneAt,
+      undoneAt,
     }),
-    [state, addReminder, updateReminder, deleteReminder, setDone, updateSettings, doneAt]
+    [state, addReminder, updateReminder, deleteReminder, setDone, updateSettings, doneAt, undoneAt]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

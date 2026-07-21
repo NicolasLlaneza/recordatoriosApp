@@ -10,13 +10,16 @@ import SlideToConfirm from './SlideToConfirm';
 type Props = {
   reminder: Reminder;
   doneAtMs?: number;
+  undoneAtMs?: number;
   onConfirm: () => void;
   onUndo: () => void;
   onEdit: () => void;
 };
 
-export default function ReminderRow({ reminder, doneAtMs, onConfirm, onUndo, onEdit }: Props) {
+export default function ReminderRow({ reminder, doneAtMs, undoneAtMs, onConfirm, onUndo, onEdit }: Props) {
   const done = doneAtMs != null;
+  const note =
+    !done && undoneAtMs != null ? `Deshecho a las ${formatTime(undoneAtMs)}` : undefined;
   return (
     <View style={styles.card}>
       <Pressable style={styles.header} onPress={onEdit} accessibilityRole="button">
@@ -29,6 +32,7 @@ export default function ReminderRow({ reminder, doneAtMs, onConfirm, onUndo, onE
       <SlideToConfirm
         done={done}
         doneLabel={doneAtMs != null ? `Hecho a las ${formatTime(doneAtMs)}` : ''}
+        note={note}
         onConfirm={onConfirm}
         onUndo={onUndo}
       />
