@@ -62,15 +62,21 @@ export default function SlideToConfirm({
         const max = maxXRef.current;
         const x = Math.min(Math.max(0, g.dx), max);
         if (max > 0 && x >= max * TRIGGER_RATIO) {
+          // Llega al final (confirma) y vuelve solo con una animación suave.
           Animated.timing(translateX, {
             toValue: max,
             duration: 120,
             useNativeDriver: true,
           }).start(() => {
             onConfirm();
-            // Reset para modos repetibles (Varias/Libre); en 'once' la vista
-            // cambia a "hecho" igual, así que resetear no molesta.
-            translateX.setValue(0);
+            // Reset animado para modos repetibles (Varias/Libre). En 'once' la
+            // vista cambia a "hecho", así que la animación no se ve (inofensiva).
+            Animated.spring(translateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              speed: 18,
+              bounciness: 4,
+            }).start();
           });
         } else {
           Animated.spring(translateX, {
