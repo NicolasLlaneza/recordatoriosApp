@@ -18,8 +18,8 @@ const ICONS = ['🔑', '🚪', '🔥', '🚗', '🪟', '💡', '🚿', '🔌', '
 
 const MODES: Array<{ value: ReminderMode; label: string; hint: string }> = [
   { value: 'once', label: '1 vez', hint: 'Se marca una vez al día.' },
-  { value: 'count', label: 'N veces', hint: 'Objetivo de varias veces al día.' },
-  { value: 'free', label: 'Libre', hint: 'Se marca cuantas veces haga falta.' },
+  { value: 'count', label: 'Varias', hint: 'Objetivo de veces por día (ej: 3).' },
+  { value: 'free', label: 'Libre', hint: 'Se marca cuantas veces haga falta, sin límite.' },
 ];
 
 export default function EditReminderScreen({ navigation, route }: ScreenProps<'EditReminder'>) {

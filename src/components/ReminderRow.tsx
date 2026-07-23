@@ -8,6 +8,7 @@ import { Reminder } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { formatTime } from '../lib/day';
 import SlideToConfirm from './SlideToConfirm';
+import MarkList from './MarkList';
 
 type Props = {
   reminder: Reminder;
@@ -20,7 +21,6 @@ type Props = {
 
 export default function ReminderRow({ reminder, marks, undoneAtMs, onMark, onUnmark, onEdit }: Props) {
   const count = marks.length;
-  const timesLabel = marks.map((m) => formatTime(m)).join(' · ');
   const note = count === 0 && undoneAtMs != null ? `Deshecho a las ${formatTime(undoneAtMs)}` : undefined;
 
   const header = (
@@ -61,13 +61,16 @@ export default function ReminderRow({ reminder, marks, undoneAtMs, onMark, onUnm
     <View style={styles.card}>
       {header}
 
-      <View style={styles.progressRow}>
-        <Text style={[styles.progress, complete && styles.progressDone]}>
-          {complete ? '✅ ' : ''}
-          {progress}
-        </Text>
-        {count > 0 && <Text style={styles.times} numberOfLines={1}>{timesLabel}</Text>}
-      </View>
+      <Text style={[styles.progress, complete && styles.progressDone]}>
+        {complete ? '✅ ' : ''}
+        {progress}
+      </Text>
+
+      {count > 0 && (
+        <View style={styles.listWrap}>
+          <MarkList entries={marks.map((m) => ({ at: m }))} />
+        </View>
+      )}
 
       <Pressable style={[styles.markBtn, complete && styles.markBtnDone]} onPress={onMark}>
         <Text style={styles.markBtnText}>＋ Marcar ahora</Text>
@@ -106,10 +109,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  progressRow: { marginBottom: spacing.md },
-  progress: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  progress: { color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: spacing.md },
   progressDone: { color: colors.green },
-  times: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  listWrap: { marginBottom: spacing.md },
   markBtn: {
     backgroundColor: colors.accent,
     borderRadius: radius.pill,

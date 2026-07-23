@@ -15,6 +15,12 @@ export function formatTime(ms: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** Fecha corta dd/mm de un timestamp en ms. */
+export function formatShortDate(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 /** Milisegundos hasta la próxima medianoche local (para refrescar la UI). */
 export function msUntilNextMidnight(now: Date = new Date()): number {
   const next = new Date(now);
