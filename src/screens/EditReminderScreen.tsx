@@ -10,10 +10,17 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../storage/store';
+import { ReminderMode } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { ScreenProps } from '../navigation';
 
 const ICONS = ['🔑', '🚪', '🔥', '🚗', '🪟', '💡', '🚿', '🔌', '🐕', '💊', '🧊', '✅'];
+
+const MODES: Array<{ value: ReminderMode; label: string; hint: string }> = [
+  { value: 'once', label: '1 vez', hint: 'Se marca una vez al día.' },
+  { value: 'count', label: 'N veces', hint: 'Objetivo de varias veces al día.' },
+  { value: 'free', label: 'Libre', hint: 'Se marca cuantas veces haga falta.' },
+];
 
 export default function EditReminderScreen({ navigation, route }: ScreenProps<'EditReminder'>) {
   const { state, addReminder, updateReminder, deleteReminder } = useStore();
@@ -24,17 +31,21 @@ export default function EditReminderScreen({ navigation, route }: ScreenProps<'E
 
   const [title, setTitle] = useState(existing?.title ?? '');
   const [icon, setIcon] = useState(existing?.icon ?? '🔑');
+  const [mode, setMode] = useState<ReminderMode>(existing?.mode ?? 'once');
+  const [target, setTarget] = useState(existing?.target ?? 3);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: existing ? 'Editar recordatorio' : 'Nuevo recordatorio' });
   }, [navigation, existing]);
 
   const canSave = title.trim().length > 0;
+  const safeTarget = Math.max(2, target);
 
   const save = () => {
     if (!canSave) return;
-    if (existing) updateReminder(existing.id, icon, title);
-    else addReminder(icon, title);
+    const t = mode === 'count' ? safeTarget : undefined;
+    if (existing) updateReminder(existing.id, icon, title, mode, t);
+    else addReminder(icon, title, mode, t);
     navigation.goBack();
   };
 
@@ -83,6 +94,37 @@ export default function EditReminderScreen({ navigation, route }: ScreenProps<'E
           </Pressable>
         ))}
       </View>
+
+      <Text style={[styles.label, { marginTop: spacing.xl }]}>Frecuencia</Text>
+      <View style={styles.modeRow}>
+        {MODES.map((m) => (
+          <Pressable
+            key={m.value}
+            onPress={() => setMode(m.value)}
+            style={[styles.modeChip, mode === m.value && styles.modeChipActive]}
+          >
+            <Text style={[styles.modeChipText, mode === m.value && styles.modeChipTextActive]}>
+              {m.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.modeHint}>{MODES.find((m) => m.value === mode)?.hint}</Text>
+
+      {mode === 'count' && (
+        <View style={styles.targetRow}>
+          <Text style={styles.targetLabel}>Veces por día</Text>
+          <View style={styles.stepper}>
+            <Pressable style={styles.stepBtn} onPress={() => setTarget((t) => Math.max(2, t - 1))}>
+              <Text style={styles.stepBtnText}>−</Text>
+            </Pressable>
+            <Text style={styles.stepValue}>{safeTarget}</Text>
+            <Pressable style={styles.stepBtn} onPress={() => setTarget((t) => Math.min(20, t + 1))}>
+              <Text style={styles.stepBtnText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       <Pressable
         style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
@@ -134,6 +176,43 @@ const styles = StyleSheet.create({
   },
   iconChipActive: { borderColor: colors.accent, backgroundColor: colors.cardAlt },
   iconChipText: { fontSize: 26 },
+  modeRow: { flexDirection: 'row', gap: spacing.sm },
+  modeChip: {
+    flex: 1,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  modeChipActive: { borderColor: colors.accent, backgroundColor: colors.cardAlt },
+  modeChipText: { color: colors.textMuted, fontSize: 15, fontWeight: '700' },
+  modeChipTextActive: { color: colors.text },
+  modeHint: { color: colors.textMuted, fontSize: 13, marginTop: spacing.sm },
+  targetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.lg,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  targetLabel: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  stepBtn: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  stepBtnText: { color: colors.accent, fontSize: 22, fontWeight: '800' },
+  stepValue: { color: colors.text, fontSize: 20, fontWeight: '800', minWidth: 36, textAlign: 'center' },
   saveBtn: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,

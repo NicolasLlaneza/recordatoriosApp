@@ -41,6 +41,14 @@ npx expo export --platform android --output-dir /tmp/exp     # valida el bundle
   Requiere correr `supabase/schema.sql` en el SQL Editor de Supabase.
 - Fase 3 (aviso por ubicación con expo-location) — pendiente.
 
+## Frecuencia (varias veces por día)
+
+- Recordatorios personales soportan modo `once` / `count` (objetivo N) / `free`
+  (libre). El store guarda una LISTA de marcas por día/recordatorio
+  (`completions: MarksMap = day -> {id: number[]}`), con migración del modelo
+  viejo (número → lista). Pendiente: replicar en grupos (requiere permitir
+  varias filas por recordatorio/día en Supabase).
+
 ## Grupos (Fase 2b)
 
 - Esquema + RLS + RPC (create_group / join_group) en `supabase/schema.sql`

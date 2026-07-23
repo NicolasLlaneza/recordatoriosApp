@@ -16,18 +16,23 @@ import { dayKey, friendlyDate, msUntilNextMidnight } from '../lib/day';
 import { ScreenProps } from '../navigation';
 
 export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
-  const { state, setDone, doneAt, undoneAt } = useStore();
+  const { state, addMark, removeMark, marksFor, undoneAt } = useStore();
 
-  const confirmUndo = (id: string, title: string) => {
-    Alert.alert('Deshacer', `¿Marcar "${title}" como no hecho?`, [
+  const confirmUnmark = (id: string, title: string) => {
+    Alert.alert('Deshacer', `¿Deshacer la última marca de "${title}"?`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Deshacer', style: 'destructive', onPress: () => setDone(id, today, false) },
+      { text: 'Deshacer', style: 'destructive', onPress: () => removeMark(id, today) },
     ]);
   };
   const insets = useSafeAreaInsets();
 
   // Día actual en estado para forzar re-render al cruzar la medianoche.
   const [today, setToday] = useState(dayKey());
+
+  const isDone = (r: (typeof state.reminders)[number]) => {
+    const c = marksFor(r.id, today).length;
+    return r.mode === 'count' ? c >= (r.target ?? 1) : c >= 1;
+  };
 
   // Refrescar el día al volver a primer plano y programar el cruce de medianoche.
   useEffect(() => {
@@ -53,7 +58,7 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
   }, []);
 
   const reminders = [...state.reminders].sort((a, b) => a.order - b.order);
-  const doneCount = reminders.filter((r) => doneAt(r.id, today) != null).length;
+  const doneCount = reminders.filter(isDone).length;
   const total = reminders.length;
   const allDone = total > 0 && doneCount === total;
 
@@ -85,19 +90,16 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
         data={reminders}
         keyExtractor={(r) => r.id}
         contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => {
-          const at = doneAt(item.id, today);
-          return (
-            <ReminderRow
-              reminder={item}
-              doneAtMs={at}
-              undoneAtMs={undoneAt(item.id, today)}
-              onConfirm={() => setDone(item.id, today, true)}
-              onUndo={() => confirmUndo(item.id, item.title)}
-              onEdit={() => navigation.navigate('EditReminder', { id: item.id })}
-            />
-          );
-        }}
+        renderItem={({ item }) => (
+          <ReminderRow
+            reminder={item}
+            marks={marksFor(item.id, today)}
+            undoneAtMs={undoneAt(item.id, today)}
+            onMark={() => addMark(item.id, today)}
+            onUnmark={() => confirmUnmark(item.id, item.title)}
+            onEdit={() => navigation.navigate('EditReminder', { id: item.id })}
+          />
+        )}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🌙</Text>

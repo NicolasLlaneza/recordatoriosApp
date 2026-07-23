@@ -1,5 +1,13 @@
 // Modelo de datos de la app de recordatorios.
 
+/**
+ * Modo de repetición diaria:
+ * - once:  una vez al día (switch verde clásico).
+ * - count: N veces al día (objetivo); se completa al llegar a `target`.
+ * - free:  libre / contador sin objetivo (se marca cuantas veces haga falta).
+ */
+export type ReminderMode = 'once' | 'count' | 'free';
+
 /** Un recordatorio / chequeo diario (ej: "Llave del gas"). */
 export type Reminder = {
   id: string;
@@ -7,16 +15,24 @@ export type Reminder = {
   icon: string; // emoji, ej: "🔑"
   createdAt: number;
   order: number;
+  mode: ReminderMode;
+  /** Objetivo de veces por día (solo modo 'count'). */
+  target?: number;
 };
 
 /**
- * Completados por día. La clave externa es el día (YYYY-MM-DD) y la interna
- * el id del recordatorio → timestamp (ms) del momento en que se marcó hecho.
+ * Marcas por día. La clave externa es el día (YYYY-MM-DD) y la interna el id
+ * del recordatorio → lista de timestamps (ms), uno por cada vez que se marcó.
  *
  * Guardar por día hace que el "reinicio a medianoche" sea automático: cada
  * día nuevo tiene su propio mapa vacío y además queda el historial.
  */
-export type CompletionMap = {
+export type MarksMap = {
+  [dayKey: string]: { [reminderId: string]: number[] };
+};
+
+/** Un timestamp (ms) por día y recordatorio (ej: hora del último deshecho). */
+export type TimeMap = {
   [dayKey: string]: { [reminderId: string]: number };
 };
 
@@ -30,9 +46,9 @@ export type Settings = {
 
 export type AppState = {
   reminders: Reminder[];
-  completions: CompletionMap;
-  /** Momento (ms) en que se deshizo un "hecho", por día y recordatorio. */
-  undos: CompletionMap;
+  completions: MarksMap;
+  /** Momento (ms) en que se deshizo la última marca, por día y recordatorio. */
+  undos: TimeMap;
   settings: Settings;
   /** true una vez que se hidrató desde el almacenamiento. */
   loaded: boolean;
