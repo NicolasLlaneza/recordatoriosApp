@@ -1,87 +1,82 @@
-// Tarjeta de un recordatorio. Rinde distinto según el modo:
-// - once:  switch deslizable (una vez al día).
-// - count: progreso "N de M" + registro de cada marca con hora.
-// - free:  contador libre con horas.
+// Tarjeta de un recordatorio. Control unificado (switch deslizable) para todos
+// los modos; en 'once' queda en verde, en 'count'/'free' se desliza y vuelve
+// para marcar de nuevo. Deshacer unificado + actividad del día (hechos/deshechos).
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Reminder } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { formatTime } from '../lib/day';
 import SlideToConfirm from './SlideToConfirm';
-import MarkList from './MarkList';
+import MarkList, { MarkEntry } from './MarkList';
 
 type Props = {
   reminder: Reminder;
-  marks: number[]; // timestamps de hoy (ordenados)
-  undoneAtMs?: number;
+  marks: number[]; // timestamps de hechos hoy
+  undos: number[]; // timestamps de deshechos hoy
   onMark: () => void;
   onUnmark: () => void; // el padre pide confirmación
   onEdit: () => void;
 };
 
-export default function ReminderRow({ reminder, marks, undoneAtMs, onMark, onUnmark, onEdit }: Props) {
+export default function ReminderRow({ reminder, marks, undos, onMark, onUnmark, onEdit }: Props) {
   const count = marks.length;
-  const note = count === 0 && undoneAtMs != null ? `Deshecho a las ${formatTime(undoneAtMs)}` : undefined;
-
-  const header = (
-    <Pressable style={styles.header} onPress={onEdit} accessibilityRole="button">
-      <Text style={styles.icon}>{reminder.icon}</Text>
-      <Text style={styles.title} numberOfLines={2}>
-        {reminder.title}
-      </Text>
-      <Text style={styles.editHint}>editar</Text>
-    </Pressable>
-  );
-
-  // Modo "una vez": switch deslizable clásico.
-  if (reminder.mode === 'once') {
-    return (
-      <View style={styles.card}>
-        {header}
-        <SlideToConfirm
-          done={count >= 1}
-          doneLabel={count >= 1 ? `Hecho a las ${formatTime(marks[0])}` : ''}
-          note={note}
-          onConfirm={onMark}
-          onUndo={onUnmark}
-        />
-      </View>
-    );
-  }
-
-  // Modos "N veces" y "libre".
   const target = reminder.mode === 'count' ? reminder.target ?? 1 : undefined;
   const complete = target != null && count >= target;
+
+  // Cuándo mostrar el switch en verde ("hecho").
+  const done = reminder.mode === 'once' ? count >= 1 : reminder.mode === 'count' ? complete : false;
+
+  const doneLabel =
+    reminder.mode === 'once'
+      ? count >= 1
+        ? `Hecho a las ${formatTime(marks[0])}`
+        : ''
+      : `Completado · ${count} de ${target}`;
+
   const progress =
     reminder.mode === 'count'
       ? `${count} de ${target} ${count === 1 ? 'vez' : 'veces'}`
       : `${count} ${count === 1 ? 'vez' : 'veces'} hoy`;
 
+  // Actividad del día: hechos + deshechos, en orden cronológico.
+  const activity: MarkEntry[] = [
+    ...marks.map((at) => ({ at, kind: 'done' as const })),
+    ...undos.map((at) => ({ at, kind: 'undo' as const })),
+  ].sort((a, b) => a.at - b.at);
+
+  const showLog = activity.length > 0 && (reminder.mode !== 'once' || undos.length > 0);
+
   return (
     <View style={styles.card}>
-      {header}
+      <Pressable style={styles.header} onPress={onEdit} accessibilityRole="button">
+        <Text style={styles.icon}>{reminder.icon}</Text>
+        <Text style={styles.title} numberOfLines={2}>
+          {reminder.title}
+        </Text>
+        <Text style={styles.editHint}>editar</Text>
+      </Pressable>
 
-      <Text style={[styles.progress, complete && styles.progressDone]}>
-        {complete ? '✅ ' : ''}
-        {progress}
-      </Text>
-
-      {count > 0 && (
-        <View style={styles.listWrap}>
-          <MarkList entries={marks.map((m) => ({ at: m }))} />
-        </View>
+      {reminder.mode !== 'once' && (
+        <Text style={[styles.progress, complete && styles.progressDone]}>
+          {complete ? '✅ ' : ''}
+          {progress}
+        </Text>
       )}
 
-      <Pressable style={[styles.markBtn, complete && styles.markBtnDone]} onPress={onMark}>
-        <Text style={styles.markBtnText}>＋ Marcar ahora</Text>
-      </Pressable>
+      <SlideToConfirm done={done} doneLabel={doneLabel} onConfirm={onMark} />
 
       {count > 0 && (
         <Pressable style={styles.undoBtn} onPress={onUnmark} hitSlop={8}>
           <Text style={styles.undoBtnText}>↩  Deshacer última</Text>
         </Pressable>
       )}
-      {note && <Text style={styles.note}>{note}</Text>}
+
+      {showLog && (
+        <View style={styles.logWrap}>
+          <Text style={styles.logTitle}>Actividad de hoy</Text>
+          <MarkList entries={activity} />
+        </View>
+      )}
     </View>
   );
 }
@@ -95,11 +90,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
   icon: { fontSize: 26, marginRight: spacing.md },
   title: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '700' },
   editHint: {
@@ -111,16 +102,15 @@ const styles = StyleSheet.create({
   },
   progress: { color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: spacing.md },
   progressDone: { color: colors.green },
-  listWrap: { marginBottom: spacing.md },
-  markBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  markBtnDone: { backgroundColor: colors.greenDark },
-  markBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   undoBtn: { alignSelf: 'center', marginTop: spacing.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
   undoBtnText: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
-  note: { color: colors.textMuted, fontSize: 13, marginTop: spacing.sm, marginLeft: spacing.xs, fontStyle: 'italic' },
+  logWrap: { marginTop: spacing.md },
+  logTitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
 });

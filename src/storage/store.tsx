@@ -9,7 +9,7 @@ import React, {
   useReducer,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, MarksMap, ReminderMode, Reminder, Settings, TimeMap } from '../types';
+import { AppState, MarksMap, ReminderMode, Reminder, Settings } from '../types';
 import { dayKey } from '../lib/day';
 
 const STORAGE_KEY = 'recordatorios.state.v1';
@@ -140,12 +140,9 @@ function reducer(state: AppState, action: Action): AppState {
     case 'ADD_MARK': {
       const dayMarks = { ...(state.completions[action.day] ?? {}) };
       dayMarks[action.id] = [...(dayMarks[action.id] ?? []), Date.now()];
-      const undoMap = { ...(state.undos[action.day] ?? {}) };
-      delete undoMap[action.id]; // al marcar de nuevo, se limpia la nota de deshecho
       return {
         ...state,
         completions: { ...state.completions, [action.day]: dayMarks },
-        undos: { ...state.undos, [action.day]: undoMap },
       };
     }
 
@@ -156,12 +153,13 @@ function reducer(state: AppState, action: Action): AppState {
       list.pop(); // quita la última marca
       if (list.length === 0) delete dayMarks[action.id];
       else dayMarks[action.id] = list;
-      const undoMap = { ...(state.undos[action.day] ?? {}) };
-      undoMap[action.id] = Date.now(); // registra la hora del deshecho
+      // Se registra el deshecho en el log (no se pierde el rastro).
+      const undoDay = { ...(state.undos[action.day] ?? {}) };
+      undoDay[action.id] = [...(undoDay[action.id] ?? []), Date.now()];
       return {
         ...state,
         completions: { ...state.completions, [action.day]: dayMarks },
-        undos: { ...state.undos, [action.day]: undoMap },
+        undos: { ...state.undos, [action.day]: undoDay },
       };
     }
 
@@ -182,7 +180,7 @@ type StoreValue = {
   removeMark: (id: string, day: string) => void;
   updateSettings: (settings: Partial<Settings>) => void;
   marksFor: (id: string, day: string) => number[];
-  undoneAt: (id: string, day: string) => number | undefined;
+  undosFor: (id: string, day: string) => number[];
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -203,7 +201,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             payload: {
               reminders: (parsed.reminders ?? []).map(migrateReminder),
               completions: prune(migrateMarks(parsed.completions)),
-              undos: prune(parsed.undos ?? {}) as TimeMap,
+              undos: prune(migrateMarks(parsed.undos)),
               settings: { ...defaultSettings, ...(parsed.settings ?? {}) },
             },
           });
@@ -259,8 +257,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (id: string, day: string) => state.completions[day]?.[id] ?? [],
     [state.completions]
   );
-  const undoneAt = useCallback(
-    (id: string, day: string) => state.undos[day]?.[id],
+  const undosFor = useCallback(
+    (id: string, day: string) => state.undos[day]?.[id] ?? [],
     [state.undos]
   );
 
@@ -274,9 +272,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeMark,
       updateSettings,
       marksFor,
-      undoneAt,
+      undosFor,
     }),
-    [state, addReminder, updateReminder, deleteReminder, addMark, removeMark, updateSettings, marksFor, undoneAt]
+    [state, addReminder, updateReminder, deleteReminder, addMark, removeMark, updateSettings, marksFor, undosFor]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

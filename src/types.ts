@@ -31,11 +31,6 @@ export type MarksMap = {
   [dayKey: string]: { [reminderId: string]: number[] };
 };
 
-/** Un timestamp (ms) por día y recordatorio (ej: hora del último deshecho). */
-export type TimeMap = {
-  [dayKey: string]: { [reminderId: string]: number };
-};
-
 /** Configuración del recordatorio-aviso diario (todo configurable por el usuario). */
 export type Settings = {
   dailyCheckEnabled: boolean;
@@ -47,8 +42,8 @@ export type Settings = {
 export type AppState = {
   reminders: Reminder[];
   completions: MarksMap;
-  /** Momento (ms) en que se deshizo la última marca, por día y recordatorio. */
-  undos: TimeMap;
+  /** Log de deshechos: lista de timestamps (ms) por día y recordatorio. */
+  undos: MarksMap;
   settings: Settings;
   /** true una vez que se hidrató desde el almacenamiento. */
   loaded: boolean;

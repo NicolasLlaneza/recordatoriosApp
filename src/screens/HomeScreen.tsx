@@ -16,7 +16,7 @@ import { dayKey, friendlyDate, msUntilNextMidnight } from '../lib/day';
 import { ScreenProps } from '../navigation';
 
 export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
-  const { state, addMark, removeMark, marksFor, undoneAt } = useStore();
+  const { state, addMark, removeMark, marksFor, undosFor } = useStore();
 
   const confirmUnmark = (id: string, title: string) => {
     Alert.alert('Deshacer', `¿Deshacer la última marca de "${title}"?`, [
@@ -94,7 +94,7 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
           <ReminderRow
             reminder={item}
             marks={marksFor(item.id, today)}
-            undoneAtMs={undoneAt(item.id, today)}
+            undos={undosFor(item.id, today)}
             onMark={() => addMark(item.id, today)}
             onUnmark={() => confirmUnmark(item.id, item.title)}
             onEdit={() => navigation.navigate('EditReminder', { id: item.id })}

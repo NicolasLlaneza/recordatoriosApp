@@ -24,7 +24,7 @@ type Props = {
   note?: string; // ej: "Deshecho a las 23:20" (cuando está pendiente tras un undo)
   idleLabel?: string;
   onConfirm: () => void;
-  onUndo: () => void; // el padre muestra la confirmación
+  onUndo?: () => void; // si se pasa y está "done", muestra el botón deshacer interno
 };
 
 export default function SlideToConfirm({
@@ -66,7 +66,12 @@ export default function SlideToConfirm({
             toValue: max,
             duration: 120,
             useNativeDriver: true,
-          }).start(() => onConfirm());
+          }).start(() => {
+            onConfirm();
+            // Reset para modos repetibles (Varias/Libre); en 'once' la vista
+            // cambia a "hecho" igual, así que resetear no molesta.
+            translateX.setValue(0);
+          });
         } else {
           Animated.spring(translateX, {
             toValue: 0,
@@ -92,15 +97,17 @@ export default function SlideToConfirm({
             {doneLabel}
           </Text>
         </View>
-        <Pressable
-          onPress={onUndo}
-          style={styles.undoBtn}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Deshacer"
-        >
-          <Text style={styles.undoBtnText}>↩  Deshacer</Text>
-        </Pressable>
+        {onUndo && (
+          <Pressable
+            onPress={onUndo}
+            style={styles.undoBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Deshacer"
+          >
+            <Text style={styles.undoBtnText}>↩  Deshacer</Text>
+          </Pressable>
+        )}
       </View>
     );
   }
