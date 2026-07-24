@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import { colors, radius, spacing } from '../theme';
 import { ScreenProps } from '../navigation';
+import { getMyDisplayName, updateDisplayName } from '../groups/api';
 
 export default function AccountScreen(_props: ScreenProps<'Account'>) {
   const { isConfigured, loading, session, email: sessionEmail, signIn, signUp, signOut } = useAuth();
@@ -48,18 +49,7 @@ export default function AccountScreen(_props: ScreenProps<'Account'>) {
   }
 
   if (session) {
-    return (
-      <ScrollView style={styles.container} contentContainerStyle={pad}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Sesión iniciada</Text>
-          <Text style={styles.body}>Estás conectado como:</Text>
-          <Text style={styles.email}>{sessionEmail}</Text>
-        </View>
-        <Pressable style={styles.secondaryBtn} onPress={() => signOut()}>
-          <Text style={styles.secondaryBtnText}>Cerrar sesión</Text>
-        </Pressable>
-      </ScrollView>
-    );
+    return <LoggedIn email={sessionEmail} onSignOut={signOut} contentStyle={pad} />;
   }
 
   const submit = async () => {
@@ -146,6 +136,91 @@ export default function AccountScreen(_props: ScreenProps<'Account'>) {
   );
 }
 
+/** Vista con sesión iniciada: nombre visible editable + cerrar sesión. */
+function LoggedIn({
+  email,
+  onSignOut,
+  contentStyle,
+}: {
+  email: string | null;
+  onSignOut: () => void;
+  contentStyle: object;
+}) {
+  const [name, setName] = useState('');
+  const [saved, setSaved] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    getMyDisplayName()
+      .then((n) => {
+        setName(n);
+        setSaved(n);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const canSave = name.trim().length > 0 && name.trim() !== saved && !busy;
+
+  const save = async () => {
+    setMsg(null);
+    setBusy(true);
+    try {
+      await updateDisplayName(name);
+      setSaved(name.trim());
+      setName(name.trim());
+      setMsg('Nombre guardado ✅');
+    } catch (e: any) {
+      setMsg(e.message ?? 'No se pudo guardar');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={contentStyle}>
+      <View style={styles.card}>
+        <Text style={styles.title}>Sesión iniciada</Text>
+        <Text style={styles.body}>Estás conectado como:</Text>
+        <Text style={styles.email}>{email}</Text>
+
+        <Text style={styles.label}>Nombre visible (en los grupos)</Text>
+        {loading ? (
+          <ActivityIndicator color={colors.accent} style={{ alignSelf: 'flex-start' }} />
+        ) : (
+          <>
+            <TextInput
+              value={name}
+              onChangeText={(t) => {
+                setName(t);
+                setMsg(null);
+              }}
+              placeholder="Ej: Nico"
+              placeholderTextColor={colors.textMuted}
+              style={styles.input}
+              maxLength={40}
+              autoCapitalize="words"
+            />
+            <Pressable
+              style={[styles.btn, !canSave && styles.btnDisabled]}
+              onPress={save}
+              disabled={!canSave}
+            >
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Guardar nombre</Text>}
+            </Pressable>
+            {msg && <Text style={styles.msg}>{msg}</Text>}
+          </>
+        )}
+      </View>
+
+      <Pressable style={styles.secondaryBtn} onPress={onSignOut}>
+        <Text style={styles.secondaryBtnText}>Cerrar sesión</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
@@ -200,5 +275,6 @@ const styles = StyleSheet.create({
   linkBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.xs },
   linkText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   error: { color: colors.danger, fontSize: 14, marginTop: spacing.md, textAlign: 'center' },
+  msg: { color: colors.textMuted, fontSize: 14, marginTop: spacing.md },
   soon: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: spacing.xl },
 });
