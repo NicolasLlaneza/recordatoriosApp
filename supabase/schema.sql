@@ -130,16 +130,16 @@ alter table public.group_completions enable row level security;
 alter table public.group_completions add column if not exists id uuid default gen_random_uuid();
 update public.group_completions set id = gen_random_uuid() where id is null;
 do $$
+declare pk_cols text[];
 begin
-  if exists (
-    select 1 from pg_constraint
-    where conname = 'group_completions_pkey' and conrelid = 'public.group_completions'::regclass
-  ) and (
-    select array_agg(a.attname order by a.attnum)
-    from pg_constraint c
-    join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
-    where c.conname = 'group_completions_pkey'
-  ) <> array['id'] then
+  select array_agg(a.attname::text order by a.attnum)
+  into pk_cols
+  from pg_constraint c
+  join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+  where c.conname = 'group_completions_pkey'
+    and c.conrelid = 'public.group_completions'::regclass;
+
+  if pk_cols is not null and pk_cols <> array['id'] then
     alter table public.group_completions drop constraint group_completions_pkey;
   end if;
 end $$;
