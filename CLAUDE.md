@@ -43,11 +43,12 @@ npx expo export --platform android --output-dir /tmp/exp     # valida el bundle
 
 ## Frecuencia (varias veces por día)
 
-- Recordatorios personales soportan modo `once` / `count` (objetivo N) / `free`
-  (libre). El store guarda una LISTA de marcas por día/recordatorio
-  (`completions: MarksMap = day -> {id: number[]}`), con migración del modelo
-  viejo (número → lista). Pendiente: replicar en grupos (requiere permitir
-  varias filas por recordatorio/día en Supabase).
+- Personales y grupos soportan modo `once` / `count` (objetivo N) / `free`.
+  Personal: store con LISTA de marcas por día (`completions` y `undos` son
+  MarksMap: day -> {id: number[]}); actividad = hechos + deshechos.
+  Grupos: `group_completions` pasó a un registro por marca (id PK, varias por
+  día); `group_reminders` tiene `mode`/`target`; actividad con nombre vía
+  MarkList (`by`). Deshacer en grupos borra la última marca PROPIA (RLS).
 
 ## Grupos (Fase 2b)
 

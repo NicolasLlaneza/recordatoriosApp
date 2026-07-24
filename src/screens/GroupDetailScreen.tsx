@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -17,20 +18,28 @@ import { colors, radius, spacing } from '../theme';
 import { dayKey, formatTime } from '../lib/day';
 import { ScreenProps } from '../navigation';
 import SlideToConfirm from '../components/SlideToConfirm';
+import MarkList, { MarkEntry } from '../components/MarkList';
 import {
   Completion,
   GroupReminder,
   Member,
   UndoRecord,
+  addMark,
   deleteGroup,
   leaveGroup,
   listMembers,
   listReminders,
   listTodayCompletions,
   listTodayUndos,
-  setDone,
+  removeMyLastMark,
   subscribeGroup,
 } from '../groups/api';
+
+function groupBy<T>(rows: T[], key: (r: T) => string): Record<string, T[]> {
+  const out: Record<string, T[]> = {};
+  for (const r of rows) (out[key(r)] ??= []).push(r);
+  return out;
+}
 
 export default function GroupDetailScreen({ navigation, route }: ScreenProps<'GroupDetail'>) {
   const { groupId, name } = route.params;
@@ -39,15 +48,14 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
   const insets = useSafeAreaInsets();
 
   const [reminders, setReminders] = useState<GroupReminder[]>([]);
-  const [completions, setCompletions] = useState<Record<string, Completion>>({});
-  const [undos, setUndos] = useState<Record<string, UndoRecord>>({});
+  const [marksByRem, setMarksByRem] = useState<Record<string, Completion[]>>({});
+  const [undosByRem, setUndosByRem] = useState<Record<string, UndoRecord[]>>({});
   const [members, setMembers] = useState<Member[]>([]);
   const [code, setCode] = useState('');
   const [createdBy, setCreatedBy] = useState('');
   const [loading, setLoading] = useState(true);
   const today = dayKey();
 
-  // Refs para que el handler de realtime lea el estado actual.
   const remindersRef = useRef<GroupReminder[]>([]);
   const membersRef = useRef<Member[]>([]);
   remindersRef.current = reminders;
@@ -68,10 +76,8 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
         supabase.from('groups').select('join_code, created_by').eq('id', groupId).single(),
       ]);
       setReminders(rems);
-      const map: Record<string, Completion> = {};
-      for (const c of comps) map[c.group_reminder_id] = c;
-      setCompletions(map);
-      setUndos(unds);
+      setMarksByRem(groupBy(comps, (c) => c.group_reminder_id));
+      setUndosByRem(groupBy(unds, (u) => u.group_reminder_id));
       setMembers(mems);
       if (grp.data) {
         setCode(grp.data.join_code as string);
@@ -90,7 +96,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
     }, [fetchAll])
   );
 
-  // Realtime: refrescar ante cualquier cambio y avisar cuando otro marca algo.
+  // Realtime: refrescar ante cualquier cambio y avisar cuando otro marca/deshace.
   useEffect(() => {
     const unsub = subscribeGroup(groupId, (payload: any) => {
       if (payload.eventType === 'INSERT' && payload.new?.group_reminder_id) {
@@ -119,31 +125,27 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
     });
   }, [navigation, name, groupId]);
 
-  const onConfirm = async (rem: GroupReminder) => {
+  const onMark = async (rem: GroupReminder) => {
     try {
-      await setDone(rem, today, true);
+      await addMark(rem, today);
       await fetchAll();
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'No se pudo marcar');
     }
   };
 
-  const onUndo = (rem: GroupReminder, comp?: Completion) => {
-    if (comp && comp.done_by !== myId) {
-      Alert.alert('No podés deshacerlo', `Lo marcó ${nameOf(comp.done_by)}.`);
-      return;
-    }
-    Alert.alert('Deshacer', `¿Marcar "${rem.title}" como no hecho?`, [
+  const onUnmark = (rem: GroupReminder) => {
+    Alert.alert('Deshacer', `¿Deshacer tu última marca de "${rem.title}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Deshacer',
         style: 'destructive',
         onPress: async () => {
           try {
-            await setDone(rem, today, false);
+            await removeMyLastMark(rem, today);
             await fetchAll();
           } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'No se pudo deshacer');
+            Alert.alert('No se pudo deshacer', e.message ?? 'Error');
           }
         },
       },
@@ -157,14 +159,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
   const confirmLeave = () => {
     Alert.alert('Salir del grupo', `¿Salir de "${name}"?`, [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Salir',
-        style: 'destructive',
-        onPress: async () => {
-          await leaveGroup(groupId);
-          navigation.goBack();
-        },
-      },
+      { text: 'Salir', style: 'destructive', onPress: async () => { await leaveGroup(groupId); navigation.goBack(); } },
     ]);
   };
 
@@ -200,10 +195,18 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
     );
   }
 
-  const doneCount = reminders.filter((r) => completions[r.id]).length;
+  const isDone = (rem: GroupReminder) => {
+    const c = (marksByRem[rem.id] ?? []).length;
+    if (rem.mode === 'count') return c >= (rem.target ?? 1);
+    return c >= 1; // once y free: "listo" con al menos una marca
+  };
+  const doneCount = reminders.filter(isDone).length;
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: insets.bottom + spacing.lg }}
+    >
       <Pressable style={styles.codeBar} onPress={shareCode}>
         <View style={{ flex: 1 }}>
           <Text style={styles.codeLabel}>Código del grupo (tocá para compartir)</Text>
@@ -226,47 +229,79 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
         </Text>
       )}
 
-      <View style={{ flex: 1 }}>
-        {reminders.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              Este grupo no tiene recordatorios.{'\n'}Agregá el primero con ＋ arriba a la derecha.
-            </Text>
-          </View>
-        ) : (
-          <View style={{ paddingHorizontal: spacing.lg, paddingBottom: insets.bottom + spacing.lg }}>
-            {reminders.map((rem) => {
-              const comp = completions[rem.id];
-              const label = comp ? `Hecho por ${nameOf(comp.done_by)} a las ${formatTime(new Date(comp.done_at).getTime())}` : '';
-              const undo = !comp ? undos[rem.id] : undefined;
-              const note = undo
-                ? `Deshecho por ${nameOf(undo.undone_by)} a las ${formatTime(new Date(undo.undone_at).getTime())}`
-                : undefined;
-              return (
-                <View key={rem.id} style={styles.card}>
-                  <Pressable
-                    style={styles.cardHeader}
-                    onPress={() => navigation.navigate('EditGroupReminder', { groupId, id: rem.id })}
-                  >
-                    <Text style={styles.icon}>{rem.icon}</Text>
-                    <Text style={styles.title}>{rem.title}</Text>
-                    <Text style={styles.editHint}>editar</Text>
-                  </Pressable>
-                  <SlideToConfirm
-                    done={!!comp}
-                    doneLabel={label}
-                    note={note}
-                    onConfirm={() => onConfirm(rem)}
-                    onUndo={() => onUndo(rem, comp)}
-                  />
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </View>
+      {reminders.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>
+            Este grupo no tiene recordatorios.{'\n'}Agregá el primero con ＋ arriba a la derecha.
+          </Text>
+        </View>
+      ) : (
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          {reminders.map((rem) => {
+            const marks = marksByRem[rem.id] ?? [];
+            const undos = undosByRem[rem.id] ?? [];
+            const count = marks.length;
+            const myMarks = marks.filter((m) => m.done_by === myId).length;
+            const target = rem.mode === 'count' ? rem.target ?? 1 : undefined;
+            const complete = target != null && count >= target;
+            const done = rem.mode === 'once' ? count >= 1 : rem.mode === 'count' ? complete : false;
 
-      <View style={{ marginBottom: insets.bottom + spacing.md }}>
+            const firstMark = marks[0];
+            const doneLabel =
+              rem.mode === 'once'
+                ? firstMark
+                  ? `Hecho por ${nameOf(firstMark.done_by)} a las ${formatTime(new Date(firstMark.done_at).getTime())}`
+                  : ''
+                : `Completado · ${count} de ${target}`;
+            const progress =
+              rem.mode === 'count'
+                ? `${count} de ${target} ${count === 1 ? 'vez' : 'veces'}`
+                : `${count} ${count === 1 ? 'vez' : 'veces'} hoy`;
+
+            const activity: MarkEntry[] = [
+              ...marks.map((m) => ({ at: new Date(m.done_at).getTime(), kind: 'done' as const, by: nameOf(m.done_by) })),
+              ...undos.map((u) => ({ at: new Date(u.undone_at).getTime(), kind: 'undo' as const, by: nameOf(u.undone_by) })),
+            ].sort((a, b) => a.at - b.at);
+
+            return (
+              <View key={rem.id} style={styles.card}>
+                <Pressable
+                  style={styles.cardHeader}
+                  onPress={() => navigation.navigate('EditGroupReminder', { groupId, id: rem.id })}
+                >
+                  <Text style={styles.icon}>{rem.icon}</Text>
+                  <Text style={styles.title}>{rem.title}</Text>
+                  <Text style={styles.editHint}>editar</Text>
+                </Pressable>
+
+                {rem.mode !== 'once' && (
+                  <Text style={[styles.remProgress, complete && styles.remProgressDone]}>
+                    {complete ? '✅ ' : ''}
+                    {progress}
+                  </Text>
+                )}
+
+                <SlideToConfirm done={done} doneLabel={doneLabel} onConfirm={() => onMark(rem)} />
+
+                {myMarks > 0 && (
+                  <Pressable style={styles.undoBtn} onPress={() => onUnmark(rem)} hitSlop={8}>
+                    <Text style={styles.undoBtnText}>↩  Deshacer última</Text>
+                  </Pressable>
+                )}
+
+                {activity.length > 0 && (
+                  <View style={styles.logWrap}>
+                    <Text style={styles.logTitle}>Actividad de hoy</Text>
+                    <MarkList entries={activity} />
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      <View style={{ marginTop: spacing.lg }}>
         <Pressable style={styles.leaveBtn} onPress={confirmLeave}>
           <Text style={styles.leaveText}>Salir del grupo</Text>
         </Pressable>
@@ -276,16 +311,13 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
           </Pressable>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 async function notifyLocal(body: string) {
   try {
-    await Notifications.scheduleNotificationAsync({
-      content: { title: 'Grupo', body },
-      trigger: null,
-    });
+    await Notifications.scheduleNotificationAsync({ content: { title: 'Grupo', body }, trigger: null });
   } catch {
     // en Expo Go puede estar limitado; se ignora
   }
@@ -332,6 +364,19 @@ const styles = StyleSheet.create({
   icon: { fontSize: 26, marginRight: spacing.md },
   title: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '700' },
   editHint: { color: colors.textMuted, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  remProgress: { color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: spacing.md },
+  remProgressDone: { color: colors.green },
+  undoBtn: { alignSelf: 'center', marginTop: spacing.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  undoBtnText: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  logWrap: { marginTop: spacing.md },
+  logTitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
   leaveBtn: { alignItems: 'center', paddingVertical: spacing.md },
   leaveText: { color: colors.textMuted, fontSize: 15, fontWeight: '700' },
   deleteText: { color: colors.danger, fontSize: 15, fontWeight: '700' },

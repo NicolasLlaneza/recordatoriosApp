@@ -92,9 +92,14 @@ create table if not exists public.group_reminders (
   icon       text not null default '✅',
   sort_order int  not null default 0,
   created_by uuid not null references auth.users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  mode       text not null default 'once',
+  target     int
 );
 alter table public.group_reminders enable row level security;
+-- Frecuencia (para instalaciones creadas antes de esta columna).
+alter table public.group_reminders add column if not exists mode text not null default 'once';
+alter table public.group_reminders add column if not exists target int;
 
 drop policy if exists gr_select on public.group_reminders;
 create policy gr_select on public.group_reminders
@@ -109,16 +114,45 @@ drop policy if exists gr_delete on public.group_reminders;
 create policy gr_delete on public.group_reminders
   for delete to authenticated using (public.is_group_member(group_id));
 
--- COMPLETADOS COMPARTIDOS (una fila por recordatorio y día) ------------------
+-- MARCAS COMPARTIDAS (varias por recordatorio y día: un registro por marca) ---
 create table if not exists public.group_completions (
+  id                uuid primary key default gen_random_uuid(),
   group_reminder_id uuid not null references public.group_reminders(id) on delete cascade,
   group_id          uuid not null references public.groups(id) on delete cascade,
   day               date not null,
   done_by           uuid not null references auth.users(id),
-  done_at           timestamptz not null default now(),
-  primary key (group_reminder_id, day)
+  done_at           timestamptz not null default now()
 );
 alter table public.group_completions enable row level security;
+
+-- Migración: instalaciones viejas tenían PK (group_reminder_id, day) — una sola
+-- marca por día. Pasamos a `id` como PK para permitir varias marcas.
+alter table public.group_completions add column if not exists id uuid default gen_random_uuid();
+update public.group_completions set id = gen_random_uuid() where id is null;
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'group_completions_pkey' and conrelid = 'public.group_completions'::regclass
+  ) and (
+    select array_agg(a.attname order by a.attnum)
+    from pg_constraint c
+    join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+    where c.conname = 'group_completions_pkey'
+  ) <> array['id'] then
+    alter table public.group_completions drop constraint group_completions_pkey;
+  end if;
+end $$;
+alter table public.group_completions alter column id set not null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'group_completions_pkey' and conrelid = 'public.group_completions'::regclass
+  ) then
+    alter table public.group_completions add primary key (id);
+  end if;
+end $$;
 
 drop policy if exists gc_select on public.group_completions;
 create policy gc_select on public.group_completions

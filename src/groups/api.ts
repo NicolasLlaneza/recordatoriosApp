@@ -10,15 +10,21 @@ export type Group = {
   created_at: string;
 };
 
+export type GroupReminderMode = 'once' | 'count' | 'free';
+
 export type GroupReminder = {
   id: string;
   group_id: string;
   title: string;
   icon: string;
   sort_order: number;
+  mode: GroupReminderMode;
+  target: number | null;
 };
 
+/** Una marca (un "hecho"): puede haber varias por recordatorio y día. */
 export type Completion = {
+  id: string;
   group_reminder_id: string;
   day: string;
   done_by: string;
@@ -104,7 +110,13 @@ export async function listReminders(groupId: string): Promise<GroupReminder[]> {
   return data ?? [];
 }
 
-export async function addReminder(groupId: string, icon: string, title: string): Promise<void> {
+export async function addReminder(
+  groupId: string,
+  icon: string,
+  title: string,
+  mode: GroupReminderMode,
+  target?: number
+): Promise<void> {
   const uid = await currentUserId();
   if (!uid) throw new Error('Sin sesión');
   const existing = await listReminders(groupId);
@@ -115,14 +127,22 @@ export async function addReminder(groupId: string, icon: string, title: string):
     title: title.trim(),
     sort_order: sort,
     created_by: uid,
+    mode,
+    target: mode === 'count' ? target ?? null : null,
   });
   if (error) throw error;
 }
 
-export async function updateReminder(id: string, icon: string, title: string): Promise<void> {
+export async function updateReminder(
+  id: string,
+  icon: string,
+  title: string,
+  mode: GroupReminderMode,
+  target?: number
+): Promise<void> {
   const { error } = await supabase
     .from('group_reminders')
-    .update({ icon: icon, title: title.trim() })
+    .update({ icon, title: title.trim(), mode, target: mode === 'count' ? target ?? null : null })
     .eq('id', id);
   if (error) throw error;
 }
@@ -142,40 +162,49 @@ export async function listTodayCompletions(groupId: string, day: string): Promis
   return data ?? [];
 }
 
-export async function setDone(
-  reminder: GroupReminder,
-  day: string,
-  done: boolean
-): Promise<void> {
+/** Agrega una marca (un "hecho") del usuario actual. */
+export async function addMark(reminder: GroupReminder, day: string): Promise<void> {
   const uid = await currentUserId();
   if (!uid) throw new Error('Sin sesión');
-  if (done) {
-    const { error } = await supabase.from('group_completions').insert({
-      group_reminder_id: reminder.id,
-      group_id: reminder.group_id,
-      day,
-      done_by: uid,
-    });
-    if (error) throw error;
-  } else {
-    const { error } = await supabase
-      .from('group_completions')
-      .delete()
-      .eq('group_reminder_id', reminder.id)
-      .eq('day', day);
-    if (error) throw error;
-    // Registrar el deshecho (auditoría: quién y cuándo).
-    await supabase.from('group_undo_log').insert({
-      group_id: reminder.group_id,
-      group_reminder_id: reminder.id,
-      day,
-      undone_by: uid,
-    });
-  }
+  const { error } = await supabase.from('group_completions').insert({
+    group_reminder_id: reminder.id,
+    group_id: reminder.group_id,
+    day,
+    done_by: uid,
+  });
+  if (error) throw error;
 }
 
-/** Último deshecho por recordatorio para el día dado. */
-export async function listTodayUndos(groupId: string, day: string): Promise<Record<string, UndoRecord>> {
+/**
+ * Deshace la última marca PROPIA del usuario para ese recordatorio/día y la
+ * registra en el log. (Por RLS, cada uno solo puede deshacer lo suyo.)
+ */
+export async function removeMyLastMark(reminder: GroupReminder, day: string): Promise<void> {
+  const uid = await currentUserId();
+  if (!uid) throw new Error('Sin sesión');
+  const { data, error } = await supabase
+    .from('group_completions')
+    .select('id')
+    .eq('group_reminder_id', reminder.id)
+    .eq('day', day)
+    .eq('done_by', uid)
+    .order('done_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const last = data?.[0];
+  if (!last) throw new Error('No tenés marcas propias para deshacer en este recordatorio.');
+  const del = await supabase.from('group_completions').delete().eq('id', last.id);
+  if (del.error) throw del.error;
+  await supabase.from('group_undo_log').insert({
+    group_id: reminder.group_id,
+    group_reminder_id: reminder.id,
+    day,
+    undone_by: uid,
+  });
+}
+
+/** Todos los deshechos del día (para armar la actividad). */
+export async function listTodayUndos(groupId: string, day: string): Promise<UndoRecord[]> {
   const { data, error } = await supabase
     .from('group_undo_log')
     .select('group_reminder_id, undone_by, undone_at')
@@ -183,9 +212,7 @@ export async function listTodayUndos(groupId: string, day: string): Promise<Reco
     .eq('day', day)
     .order('undone_at', { ascending: true });
   if (error) throw error;
-  const map: Record<string, UndoRecord> = {};
-  for (const r of data ?? []) map[r.group_reminder_id as string] = r as UndoRecord; // el último gana
-  return map;
+  return (data ?? []) as UndoRecord[];
 }
 
 /** Suscripción en tiempo real a cambios de recordatorios y completados del grupo. */
