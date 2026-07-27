@@ -52,13 +52,25 @@ compu encendida. En Android es gratis: solo hace falta una cuenta gratuita en
 [expo.dev](https://expo.dev).
 
 ```bash
-npx eas login                              # una vez
-npx eas init                               # una vez: vincula el proyecto
-npx eas build -p android --profile preview # compila en la nube (~10-15 min)
+npx eas-cli@latest login                              # una vez
+npx eas-cli@latest init                               # una vez: vincula el proyecto
+npx eas-cli@latest build -p android --profile preview # compila en la nube
 ```
+
+> ⚠️ Es **`eas-cli`**, no `eas`: existe un paquete npm llamado `eas` que no
+> tiene nada que ver con Expo.
+
+**No hace falta la compu propia**: alcanza con el Codespace en el navegador,
+porque la compilación ocurre en los servidores de Expo.
 
 Al terminar da un QR/link: se abre desde el teléfono, se baja el APK y se
 instala (Android va a pedir permitir "instalar apps de orígenes desconocidos").
+
+Después de esa primera vez —que tiene que ser interactiva para generar la
+keystore— las siguientes compilaciones se lanzan **desde la web de GitHub**, sin
+terminal: pestaña **Actions → Build Android → Run workflow**. Requiere guardar
+un token de Expo como secreto `EXPO_TOKEN`; los pasos están en
+`.github/workflows/build-android.yml`.
 
 Perfiles disponibles en `eas.json`:
 

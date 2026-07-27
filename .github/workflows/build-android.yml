@@ -1,0 +1,64 @@
+# Compila el APK en los servidores de Expo desde la web de GitHub, sin terminal
+# ni compu: Actions -> "Build Android" -> "Run workflow".
+#
+# Requisitos (una sola vez):
+#   1. Que ya exista una keystore en el proyecto. La PRIMERA compilación tiene
+#      que hacerse de forma interactiva (`npx eas-cli@latest build ...` desde el
+#      Codespace): generar la keystore no es posible en modo no interactivo.
+#      De ahí en más, este workflow funciona solo.
+#   2. Un token de acceso de Expo guardado como secreto `EXPO_TOKEN`:
+#      expo.dev -> Account settings -> Access tokens -> Create
+#      GitHub -> repo -> Settings -> Secrets and variables -> Actions -> New secret
+
+name: Build Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Perfil de eas.json
+        type: choice
+        options:
+          - preview
+          - development
+          - production
+        default: preview
+
+jobs:
+  build:
+    name: EAS Build (Android)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ inputs.profile }} \
+            --non-interactive \
+            --no-wait
+
+      - name: Donde ver el resultado
+        run: |
+          echo "La compilacion sigue en los servidores de Expo."
+          echo "Ver el APK cuando termine en: https://expo.dev -> Projects -> recordatorios -> Builds"
