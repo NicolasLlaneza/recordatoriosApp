@@ -88,5 +88,20 @@ e idempotencia. Vale la pena: así se detectó el bug del trigger.
   (anon key es pública; la seguridad la dan las RLS). Nunca commitear
   service_role.
 - Google / Apple sign-in: pendientes para cuando se haga el **development
-  build** (no funcionan en Expo Go; Apple además requiere cuenta de developer
-  paga). Ese build hace falta igual para push notifications reales.
+  build** (no funcionan en Expo Go). Ese build hace falta igual para push
+  notifications reales y ubicación en segundo plano.
+
+## Plataforma del usuario
+
+**El usuario usa Android**, no iOS. Eso quita el bloqueo de la cuenta paga de
+Apple: en Android el APK autónomo se genera gratis con
+`npx eas build -p android --profile preview` (perfiles en `eas.json`). Es el
+camino recomendado para push reales, Google sign-in y ubicación en segundo
+plano, y también para no depender del servidor de desarrollo.
+
+## Rama `snack`
+
+`main` sin `assets/` y con `app.json` sin referencias a esos archivos, para
+importar en Expo Snack (su importador falla con binarios). No se actualiza
+sola. Ver `SNACK.md` en esa rama. Snack tampoco soporta `.env`: por eso
+`src/lib/supabase.ts` tiene constantes de respaldo.

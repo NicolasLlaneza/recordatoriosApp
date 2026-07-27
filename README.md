@@ -41,9 +41,38 @@ Escaneá el QR con Expo Go (Android) o con la cámara (iOS) y la app se abre en
 tu teléfono. También: `npm run android` / `npm run ios`.
 
 > **Notificaciones:** las notificaciones locales pueden estar limitadas en
-> Expo Go en Android (SDK 53+). Para probar el aviso diario end-to-end conviene
-> un _development build_ (`npx expo run:android`). La lógica de la app ya está
-> lista; es solo una limitación del entorno de prueba.
+> Expo Go en Android (SDK 53+). Para probarlas end-to-end conviene instalar la
+> app de verdad (ver abajo). La lógica ya está lista; es una limitación del
+> entorno de prueba.
+
+## Instalarla en el teléfono (Android, sin servidor de desarrollo)
+
+Genera un **APK** que se instala como cualquier app y funciona sola, sin la
+compu encendida. En Android es gratis: solo hace falta una cuenta gratuita en
+[expo.dev](https://expo.dev).
+
+```bash
+npx eas login                              # una vez
+npx eas init                               # una vez: vincula el proyecto
+npx eas build -p android --profile preview # compila en la nube (~10-15 min)
+```
+
+Al terminar da un QR/link: se abre desde el teléfono, se baja el APK y se
+instala (Android va a pedir permitir "instalar apps de orígenes desconocidos").
+
+Perfiles disponibles en `eas.json`:
+
+| Perfil | Para qué |
+|---|---|
+| `preview` | APK autónomo. Es el que querés para **usar** la app. |
+| `development` | APK con dev client: sí necesita `npm start`, pero permite depurar y usar módulos nativos que Expo Go no trae (push reales, ubicación en segundo plano). |
+| `production` | AAB para publicar en Google Play. |
+
+Una vez instalada, los cambios de JavaScript se pueden mandar por aire con
+`npx eas update --branch preview`, sin recompilar.
+
+> Tener build propio **libera la restricción de SDK**: el proyecto está fijado a
+> Expo SDK 54 solo porque es el que soporta la app Expo Go de las tiendas.
 
 ## Estructura
 
