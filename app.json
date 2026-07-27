@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#0F1115",
     "scheme": "recordatorios",
     "newArchEnabled": true,
     "ios": {
@@ -14,6 +15,7 @@
     },
     "android": {
       "package": "com.nicolasllaneza.recordatorios",
+      "backgroundColor": "#0F1115",
       "adaptiveIcon": {
         "backgroundColor": "#0F1115",
         "foregroundImage": "./assets/android-icon-foreground.png",
