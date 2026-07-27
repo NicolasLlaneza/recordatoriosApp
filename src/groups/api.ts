@@ -2,12 +2,19 @@
 // protegidas por RLS: cada usuario solo ve/edita lo de sus grupos.
 import { supabase } from '../lib/supabase';
 
+/** 'home' = convivientes; 'business' = local/comercio (permisos por rol). */
+export type GroupKind = 'home' | 'business';
+
+/** owner: creador · admin: gestiona la lista · member: solo marca. */
+export type GroupRole = 'owner' | 'admin' | 'member';
+
 export type Group = {
   id: string;
   name: string;
   join_code: string;
   created_by: string;
   created_at: string;
+  kind: GroupKind;
 };
 
 export type GroupReminderMode = 'once' | 'count' | 'free';
@@ -31,7 +38,7 @@ export type Completion = {
   done_at: string;
 };
 
-export type Member = { user_id: string; display_name: string };
+export type Member = { user_id: string; display_name: string; role: GroupRole };
 
 export type UndoRecord = { group_reminder_id: string; undone_by: string; undone_at: string };
 
@@ -72,8 +79,8 @@ export async function listMyGroups(): Promise<Group[]> {
   return data ?? [];
 }
 
-export async function createGroup(name: string): Promise<Group> {
-  const { data, error } = await supabase.rpc('create_group', { p_name: name });
+export async function createGroup(name: string, kind: GroupKind = 'home'): Promise<Group> {
+  const { data, error } = await supabase.rpc('create_group', { p_name: name, p_kind: kind });
   if (error) throw error;
   return data as Group;
 }
@@ -104,17 +111,32 @@ export async function leaveGroup(groupId: string): Promise<void> {
 export async function listMembers(groupId: string): Promise<Member[]> {
   const { data: rows, error } = await supabase
     .from('group_members')
-    .select('user_id')
+    .select('user_id, role')
     .eq('group_id', groupId);
   if (error) throw error;
-  const ids = (rows ?? []).map((r) => r.user_id as string);
+  const roles = new Map<string, GroupRole>();
+  for (const r of rows ?? []) roles.set(r.user_id as string, ((r.role as GroupRole) ?? 'member'));
+  const ids = [...roles.keys()];
   if (ids.length === 0) return [];
   const { data: profs, error: e2 } = await supabase
     .from('profiles')
     .select('id, display_name')
     .in('id', ids);
   if (e2) throw e2;
-  return (profs ?? []).map((p) => ({ user_id: p.id as string, display_name: p.display_name as string }));
+  return (profs ?? []).map((p) => ({
+    user_id: p.id as string,
+    display_name: p.display_name as string,
+    role: roles.get(p.id as string) ?? 'member',
+  }));
+}
+
+/**
+ * ¿Puede gestionar la lista de recordatorios? Espeja la regla de la DB
+ * (`can_manage_group`): en hogar cualquier miembro; en negocio, owner/admin.
+ */
+export function canManageGroup(kind: GroupKind, role: GroupRole | undefined): boolean {
+  if (kind === 'home') return !!role;
+  return role === 'owner' || role === 'admin';
 }
 
 export async function listReminders(groupId: string): Promise<GroupReminder[]> {

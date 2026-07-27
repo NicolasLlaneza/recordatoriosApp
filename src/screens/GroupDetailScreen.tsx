@@ -21,10 +21,12 @@ import SlideToConfirm from '../components/SlideToConfirm';
 import MarkList, { MarkEntry } from '../components/MarkList';
 import {
   Completion,
+  GroupKind,
   GroupReminder,
   Member,
   UndoRecord,
   addMark,
+  canManageGroup,
   deleteGroup,
   leaveGroup,
   listMembers,
@@ -53,6 +55,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
   const [members, setMembers] = useState<Member[]>([]);
   const [code, setCode] = useState('');
   const [createdBy, setCreatedBy] = useState('');
+  const [kind, setKind] = useState<GroupKind>('home');
   const [loading, setLoading] = useState(true);
   const today = dayKey();
 
@@ -66,6 +69,10 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
     return membersRef.current.find((m) => m.user_id === userId)?.display_name ?? 'alguien';
   };
 
+  // Permisos: en hogar cualquiera gestiona la lista; en negocio, owner/admin.
+  const myRole = members.find((m) => m.user_id === myId)?.role;
+  const canManage = canManageGroup(kind, myRole);
+
   const fetchAll = useCallback(async () => {
     try {
       const [rems, comps, unds, mems, grp] = await Promise.all([
@@ -73,7 +80,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
         listTodayCompletions(groupId, today),
         listTodayUndos(groupId, today),
         listMembers(groupId),
-        supabase.from('groups').select('join_code, created_by').eq('id', groupId).single(),
+        supabase.from('groups').select('join_code, created_by, kind').eq('id', groupId).single(),
       ]);
       setReminders(rems);
       setMarksByRem(groupBy(comps, (c) => c.group_reminder_id));
@@ -82,6 +89,7 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
       if (grp.data) {
         setCode(grp.data.join_code as string);
         setCreatedBy(grp.data.created_by as string);
+        setKind(((grp.data.kind as GroupKind) ?? 'home'));
       }
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'No se pudo cargar el grupo');
@@ -117,13 +125,15 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
   useLayoutEffect(() => {
     navigation.setOptions({
       title: name,
-      headerRight: () => (
-        <Pressable onPress={() => navigation.navigate('EditGroupReminder', { groupId })} hitSlop={12}>
-          <Text style={styles.headerAdd}>＋</Text>
-        </Pressable>
-      ),
+      headerRight: canManage
+        ? () => (
+            <Pressable onPress={() => navigation.navigate('EditGroupReminder', { groupId })} hitSlop={12}>
+              <Text style={styles.headerAdd}>＋</Text>
+            </Pressable>
+          )
+        : undefined,
     });
-  }, [navigation, name, groupId]);
+  }, [navigation, name, groupId, canManage]);
 
   const onMark = async (rem: GroupReminder) => {
     try {
@@ -232,7 +242,9 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
       {reminders.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
-            Este grupo no tiene recordatorios.{'\n'}Agregá el primero con ＋ arriba a la derecha.
+            {canManage
+              ? 'Este grupo no tiene recordatorios.\nAgregá el primero con ＋ arriba a la derecha.'
+              : 'Este grupo no tiene recordatorios todavía.\nEl encargado es quien arma la lista.'}
           </Text>
         </View>
       ) : (
@@ -267,11 +279,12 @@ export default function GroupDetailScreen({ navigation, route }: ScreenProps<'Gr
               <View key={rem.id} style={styles.card}>
                 <Pressable
                   style={styles.cardHeader}
+                  disabled={!canManage}
                   onPress={() => navigation.navigate('EditGroupReminder', { groupId, id: rem.id })}
                 >
                   <Text style={styles.icon}>{rem.icon}</Text>
                   <Text style={styles.title}>{rem.title}</Text>
-                  <Text style={styles.editHint}>editar</Text>
+                  {canManage && <Text style={styles.editHint}>editar</Text>}
                 </Pressable>
 
                 {rem.mode !== 'once' && (

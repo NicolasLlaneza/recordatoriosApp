@@ -58,6 +58,30 @@ npx expo export --platform android --output-dir /tmp/exp     # valida el bundle
   EditGroupReminder. Aviso al otro = notificación local al recibir evento
   realtime de otro usuario (push con app cerrada = pendiente dev build).
 
+## Groundwork monetización (hecho)
+
+Estructura lista para empresas y freemium, sin gatear nada de lo existente
+(regla: lo que ya es gratis sigue gratis; solo se cobra lo nuevo).
+
+- `groups.kind` = 'home' | 'business'; `group_members.role` = owner/admin/member.
+  Permiso de gestión vía `can_manage_group(g)`: en hogar cualquier miembro
+  (comportamiento previo intacto), en negocio solo owner/admin. Espejado en la
+  app con `canManageGroup(kind, role)`.
+- `profiles.plan` = free/pro/business, protegido por el trigger `protect_plan`.
+  **El trigger NO debe ser SECURITY DEFINER**: bajo definer `current_user` es el
+  dueño de la función y la protección no aplica (bug encontrado y corregido).
+- Punto único de gating en la app: `src/plan/features.ts` (matriz de features +
+  FREE_LIMITS) y `usePlan()` de `src/plan/PlanProvider.tsx`. Nada está gateado
+  todavía: las features Pro/Empresa aún no existen.
+
+### Probar el SQL localmente
+
+Hay Postgres 16 en el contenedor. Se puede levantar una instancia temporal
+(`initdb` + `pg_ctl` como usuario postgres), stubear `auth.users`/`auth.uid()`,
+el rol `authenticated` y la publicación `supabase_realtime`, y correr
+`schema.sql` contra base vacía y contra el esquema viejo para validar migración
+e idempotencia. Vale la pena: así se detectó el bug del trigger.
+
 ## Backend / auth
 
 - Credenciales de Supabase en `.env` (EXPO_PUBLIC_*), versionado a propósito

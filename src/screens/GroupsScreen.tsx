@@ -14,7 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import { colors, radius, spacing } from '../theme';
 import { ScreenProps } from '../navigation';
-import { createGroup, ensureProfile, joinGroup, listMyGroups, Group } from '../groups/api';
+import { createGroup, ensureProfile, joinGroup, listMyGroups, Group, GroupKind } from '../groups/api';
+
+const KINDS: Array<{ value: GroupKind; label: string; hint: string }> = [
+  { value: 'home', label: '🏠 Hogar', hint: 'Convivientes: todos pueden editar la lista.' },
+  { value: 'business', label: '🏢 Negocio', hint: 'Local o comercio: solo el encargado edita la lista; el resto marca.' },
+];
 
 export default function GroupsScreen({ navigation }: ScreenProps<'Groups'>) {
   const { session, isConfigured } = useAuth();
@@ -23,6 +28,7 @@ export default function GroupsScreen({ navigation }: ScreenProps<'Groups'>) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
+  const [kind, setKind] = useState<GroupKind>('home');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +60,7 @@ export default function GroupsScreen({ navigation }: ScreenProps<'Groups'>) {
     }
     setBusy(true);
     try {
-      const g = await createGroup(name);
+      const g = await createGroup(name, kind);
       setName('');
       await refresh();
       navigation.navigate('GroupDetail', { groupId: g.id, name: g.name });
@@ -114,7 +120,10 @@ export default function GroupsScreen({ navigation }: ScreenProps<'Groups'>) {
             onPress={() => navigation.navigate('GroupDetail', { groupId: g.id, name: g.name })}
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.groupName}>{g.name}</Text>
+              <Text style={styles.groupName}>
+                {g.kind === 'business' ? '🏢 ' : ''}
+                {g.name}
+              </Text>
               <Text style={styles.groupCode}>Código: {g.join_code}</Text>
             </View>
             <Text style={styles.chevron}>›</Text>
@@ -131,6 +140,20 @@ export default function GroupsScreen({ navigation }: ScreenProps<'Groups'>) {
           placeholderTextColor={colors.textMuted}
           style={styles.input}
         />
+        <View style={styles.kindRow}>
+          {KINDS.map((k) => (
+            <Pressable
+              key={k.value}
+              onPress={() => setKind(k.value)}
+              style={[styles.kindChip, kind === k.value && styles.kindChipActive]}
+            >
+              <Text style={[styles.kindChipText, kind === k.value && styles.kindChipTextActive]}>
+                {k.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.kindHint}>{KINDS.find((k) => k.value === kind)?.hint}</Text>
         <Pressable style={[styles.btn, busy && styles.btnDisabled]} onPress={onCreate} disabled={busy}>
           <Text style={styles.btnText}>Crear grupo</Text>
         </Pressable>
@@ -189,6 +212,20 @@ const styles = StyleSheet.create({
   },
   groupName: { color: colors.text, fontSize: 17, fontWeight: '700' },
   groupCode: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  kindRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  kindChip: {
+    flex: 1,
+    borderRadius: radius.md,
+    backgroundColor: colors.cardAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  kindChipActive: { borderColor: colors.accent },
+  kindChipText: { color: colors.textMuted, fontSize: 15, fontWeight: '700' },
+  kindChipTextActive: { color: colors.text },
+  kindHint: { color: colors.textMuted, fontSize: 13, marginTop: spacing.sm },
   chevron: { color: colors.textMuted, fontSize: 28 },
   input: {
     backgroundColor: colors.cardAlt,

@@ -13,6 +13,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { colors, radius, spacing } from '../theme';
 import { ScreenProps } from '../navigation';
 import { getMyDisplayName, updateDisplayName } from '../groups/api';
+import { usePlan } from '../plan/PlanProvider';
 
 export default function AccountScreen(_props: ScreenProps<'Account'>) {
   const { isConfigured, loading, session, email: sessionEmail, signIn, signUp, signOut } = useAuth();
@@ -146,6 +147,7 @@ function LoggedIn({
   onSignOut: () => void;
   contentStyle: object;
 }) {
+  const { label: planName } = usePlan();
   const [name, setName] = useState('');
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(true);
@@ -184,6 +186,9 @@ function LoggedIn({
         <Text style={styles.title}>Sesión iniciada</Text>
         <Text style={styles.body}>Estás conectado como:</Text>
         <Text style={styles.email}>{email}</Text>
+        <View style={styles.planChip}>
+          <Text style={styles.planChipText}>Plan {planName}</Text>
+        </View>
 
         <Text style={styles.label}>Nombre visible (en los grupos)</Text>
         {loading ? (
@@ -276,5 +281,16 @@ const styles = StyleSheet.create({
   linkText: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   error: { color: colors.danger, fontSize: 14, marginTop: spacing.md, textAlign: 'center' },
   msg: { color: colors.textMuted, fontSize: 14, marginTop: spacing.md },
+  planChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.md,
+  },
+  planChipText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
   soon: { color: colors.textMuted, fontSize: 13, textAlign: 'center', marginTop: spacing.xl },
 });

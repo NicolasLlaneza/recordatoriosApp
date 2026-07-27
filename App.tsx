@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StoreProvider, useStore } from './src/storage/store';
 import { AuthProvider } from './src/auth/AuthProvider';
+import { PlanProvider } from './src/plan/PlanProvider';
 import HomeScreen from './src/screens/HomeScreen';
 import EditReminderScreen from './src/screens/EditReminderScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -53,36 +54,38 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StoreProvider>
-          <NotificationsBridge />
-          <StatusBar style="light" />
-          <NavigationContainer theme={navTheme}>
-            <Stack.Navigator
-              screenOptions={{
-                headerStyle: { backgroundColor: colors.bg },
-                headerTintColor: colors.text,
-                headerShadowVisible: false,
-                contentStyle: { backgroundColor: colors.bg },
-              }}
-            >
-              <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-              <Stack.Screen
-                name="EditReminder"
-                component={EditReminderScreen}
-                options={{ title: 'Recordatorio', presentation: 'modal' }}
-              />
-              <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ajustes' }} />
-              <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Cuenta' }} />
-              <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Grupos' }} />
-              <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Grupo' }} />
-              <Stack.Screen
-                name="EditGroupReminder"
-                component={EditGroupReminderScreen}
-                options={{ title: 'Recordatorio', presentation: 'modal' }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </StoreProvider>
+        <PlanProvider>
+          <StoreProvider>
+            <NotificationsBridge />
+            <StatusBar style="light" />
+            <NavigationContainer theme={navTheme}>
+              <Stack.Navigator
+                screenOptions={{
+                  headerStyle: { backgroundColor: colors.bg },
+                  headerTintColor: colors.text,
+                  headerShadowVisible: false,
+                  contentStyle: { backgroundColor: colors.bg },
+                }}
+              >
+                <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="EditReminder"
+                  component={EditReminderScreen}
+                  options={{ title: 'Recordatorio', presentation: 'modal' }}
+                />
+                <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ajustes' }} />
+                <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Cuenta' }} />
+                <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Grupos' }} />
+                <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Grupo' }} />
+                <Stack.Screen
+                  name="EditGroupReminder"
+                  component={EditGroupReminderScreen}
+                  options={{ title: 'Recordatorio', presentation: 'modal' }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </StoreProvider>
+        </PlanProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
