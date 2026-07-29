@@ -35,7 +35,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22: @supabase/supabase-js declara engines >= 22 y con 20 npm avisa
+          # (solo un warning: la libreria corre en el telefono, no en Node).
+          node-version: 22
           cache: npm
 
       - name: Setup EAS
