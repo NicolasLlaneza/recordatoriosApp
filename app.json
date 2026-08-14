@@ -27,6 +27,20 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-notifications"]
+    "plugins": [
+      "expo-notifications"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8472cf65-b53d-4953-9145-ceefd7deeb90"
+      }
+    },
+    "owner": "nicollanezas-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8472cf65-b53d-4953-9145-ceefd7deeb90"
+    }
   }
 }
